@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>ひらめきクエスト！</title>
+    <meta name="description" content="子どもから大人まで楽しめるクイズバトルPWAゲーム！モンスターをひらめきで倒そう！" />
+    <meta property="og:title" content="ひらめきクエスト！" />
+    <meta property="og:description" content="子どもから大人まで楽しめるクイズバトルPWAゲーム！モンスターをひらめきで倒そう！" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    
+    <!-- PWA Settings -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ひらめきクエスト" />
+    <link rel="icon" type="image/png" href="./icon.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    
+    <!-- Fonts (Google Fonts CDN: 追加プラグインなしで無料利用可能) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@700;900&family=M+PLUS+Rounded+1c:wght@700;800;900&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-black text-white select-none overflow-x-hidden">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Service Worker registration with instant cache clean update detection
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').then((registration) => {
+            // Check for updates periodically
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('[SW] New version available, reloading...');
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+          }).catch((err) => {
+            console.log('[SW] Registration failed:', err);
+          });
+
+          // Listen for forced reload message from service worker
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'SW_FORCE_CLEAN_RELOAD') {
+              console.log('[SW] Received SW_FORCE_CLEAN_RELOAD signal. Refreshing application...');
+              window.location.reload();
+            }
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+
