@@ -1,153 +1,210 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Background Gradient -->
-    <radialGradient id="bgGrad" cx="50%" cy="40%" r="65%">
-      <stop offset="0%" stop-color="#1e1b4b" />
-      <stop offset="50%" stop-color="#0f172a" />
+    <!-- Deep Cosmic Radial Gradient -->
+    <radialGradient id="spaceGrad" cx="50%" cy="38%" r="68%">
+      <stop offset="0%" stop-color="#2e1065" />
+      <stop offset="35%" stop-color="#1e1b4b" />
+      <stop offset="70%" stop-color="#0f172a" />
       <stop offset="100%" stop-color="#020617" />
     </radialGradient>
 
     <!-- Diamond Blade Gradients -->
     <linearGradient id="diamondEdgeL" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#e0f2fe" />
-      <stop offset="40%" stop-color="#38bdf8" />
+      <stop offset="30%" stop-color="#38bdf8" />
       <stop offset="100%" stop-color="#0284c7" />
     </linearGradient>
     <linearGradient id="diamondEdgeR" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#bae6fd" />
-      <stop offset="50%" stop-color="#0ea5e9" />
+      <stop offset="40%" stop-color="#0ea5e9" />
       <stop offset="100%" stop-color="#0369a1" />
     </linearGradient>
-    <linearGradient id="diamondCenter" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="30%" stop-color="#7dd3fc" />
-      <stop offset="100%" stop-color="#0284c7" />
+
+    <!-- Gold Gradients -->
+    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="25%" stop-color="#eab308" />
+      <stop offset="50%" stop-color="#fef08a" />
+      <stop offset="75%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#854d0e" />
     </linearGradient>
 
-    <!-- Gold Hilt Gradients -->
     <linearGradient id="goldHilt" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fef08a" />
       <stop offset="40%" stop-color="#eab308" />
       <stop offset="100%" stop-color="#a16207" />
     </linearGradient>
 
-    <!-- Title Banner Gradients -->
     <linearGradient id="textGold" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="40%" stop-color="#fef08a" />
+      <stop offset="35%" stop-color="#fef08a" />
       <stop offset="70%" stop-color="#facc15" />
-      <stop offset="100%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#d97706" />
     </linearGradient>
 
     <filter id="diamondGlow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feGaussianBlur stdDeviation="10" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
   </defs>
 
-  <!-- App Icon Base with rounded corners -->
-  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" stroke="#38bdf8" stroke-width="10" />
+  <!-- Seamless Dark Cosmic Background for Android Maskable Crop -->
+  <rect width="512" height="512" fill="#020617" />
 
-  <!-- Magic Sparkles & Stars -->
+  <!-- Main Circular Emblem / Medallion -->
+  <!-- Outer Gold Rim -->
+  <circle cx="256" cy="256" r="236" fill="url(#spaceGrad)" stroke="url(#goldRim)" stroke-width="12" />
+  
+  <!-- Cyan Magic Accent Ring -->
+  <circle cx="256" cy="256" r="222" fill="none" stroke="#38bdf8" stroke-width="3" opacity="0.85" />
+  
+  <!-- Subtle Inner Dotted Guide Ring -->
+  <circle cx="256" cy="256" r="214" fill="none" stroke="#eab308" stroke-width="1.5" stroke-dasharray="6,6" opacity="0.6" />
+
+  <!-- Magic Sparkles & Stars (Positioned safely inside circular emblem) -->
   <g fill="#fef08a" opacity="0.9">
-    <polygon points="120,80 126,96 142,102 126,108 120,124 114,108 98,102 114,96" />
-    <polygon points="400,90 405,103 418,108 405,113 400,126 395,113 382,108 395,103" />
-    <polygon points="90,320 94,332 106,336 94,340 90,352 86,340 74,336 86,332" />
-    <polygon points="430,300 434,310 444,314 434,318 430,328 426,318 416,314 426,310" />
+    <polygon points="120,120 125,133 138,138 125,143 120,156 115,143 102,138 115,133" />
+    <polygon points="390,125 394,136 405,140 394,144 390,155 386,144 375,140 386,136" />
+    <polygon points="105,260 109,270 119,274 109,278 105,288 101,278 91,274 101,270" />
+    <polygon points="408,260 412,270 422,274 412,278 408,288 404,278 394,274 404,270" />
   </g>
-  <circle cx="210" cy="70" r="3" fill="#ffffff" opacity="0.8" />
-  <circle cx="340" cy="140" r="4" fill="#38bdf8" opacity="0.9" />
-  <circle cx="100" cy="220" r="3" fill="#38bdf8" opacity="0.9" />
+  <circle cx="180" cy="90" r="3.5" fill="#ffffff" opacity="0.9" />
+  <circle cx="330" cy="95" r="4" fill="#38bdf8" opacity="0.9" />
+  <circle cx="140" cy="200" r="3" fill="#38bdf8" opacity="0.8" />
+  <circle cx="370" cy="205" r="3" fill="#ffffff" opacity="0.8" />
 
   <!-- Diamond Sword Aura / Glow -->
-  <g transform="translate(256, 210) rotate(-45)" filter="url(#diamondGlow)">
-    <ellipse cx="0" cy="-60" rx="45" ry="150" fill="#38bdf8" opacity="0.35" />
+  <g transform="translate(256, 192) rotate(-42)" filter="url(#diamondGlow)">
+    <ellipse cx="0" cy="-55" rx="42" ry="135" fill="#38bdf8" opacity="0.4" />
   </g>
 
-  <!-- Gorgeous Diamond Sword (Angled diagonally, inspired by the wooden sword silhouette) -->
-  <g transform="translate(256, 210) rotate(-45)">
-    <!-- 1. Diamond Blade Tip & Edges -->
-    <path d="M0 -220 L-26 -195 L-22 35 L0 40 Z" fill="url(#diamondEdgeL)" />
-    <path d="M0 -220 L26 -195 L22 35 L0 40 Z" fill="url(#diamondEdgeR)" />
-    <!-- Central Ridge & Crystal Facets -->
-    <path d="M0 -220 L-12 -180 L0 -170 L12 -180 Z" fill="#ffffff" opacity="0.9" />
-    <path d="M0 -170 L-10 -70 L0 -50 L10 -70 Z" fill="#e0f2fe" opacity="0.75" />
-    <path d="M0 -50 L-8 20 L0 38 L8 20 Z" fill="#bae6fd" opacity="0.6" />
-    <line x1="0" y1="-215" x2="0" y2="40" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
-    <line x1="-12" y1="-170" x2="-8" y2="-70" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.8" />
+  <!-- Diamond Sword -->
+  <g transform="translate(256, 192) rotate(-42)">
+    <!-- Blade Tip & Edges -->
+    <path d="M0 -195 L-24 -172 L-20 30 L0 35 Z" fill="url(#diamondEdgeL)" />
+    <path d="M0 -195 L24 -172 L20 30 L0 35 Z" fill="url(#diamondEdgeR)" />
+    
+    <!-- Central Crystal Facets & White Gleam -->
+    <path d="M0 -195 L-10 -160 L0 -150 L10 -160 Z" fill="#ffffff" opacity="0.95" />
+    <path d="M0 -150 L-9 -60 L0 -45 L9 -60 Z" fill="#e0f2fe" opacity="0.8" />
+    <path d="M0 -45 L-7 18 L0 34 L7 18 Z" fill="#bae6fd" opacity="0.65" />
+    <line x1="0" y1="-190" x2="0" y2="34" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+    <line x1="-10" y1="-150" x2="-7" y2="-60" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" opacity="0.85" />
 
-    <!-- 2. Ornate Golden Crossguard (with central gem) -->
+    <!-- Ornate Golden Crossguard with Ruby Gem -->
     <path
-      d="M-58 35 C-55 18 -20 22 0 26 C20 22 55 18 58 35 C62 52 25 54 0 50 C-25 54 -62 52 -58 35 Z"
+      d="M-52 30 C-49 15 -18 18 0 22 C18 18 49 15 52 30 C56 45 22 47 0 44 C-22 47 -56 45 -52 30 Z"
       fill="url(#goldHilt)"
       stroke="#78350f"
-      stroke-width="3"
+      stroke-width="2.5"
     />
-    <circle cx="-56" cy="35" r="7" fill="url(#goldHilt)" stroke="#78350f" stroke-width="2" />
-    <circle cx="56" cy="35" r="7" fill="url(#goldHilt)" stroke="#78350f" stroke-width="2" />
-    <ellipse cx="0" cy="38" rx="10" ry="12" fill="#ef4444" stroke="#991b1b" stroke-width="2" />
-    <ellipse cx="-2" cy="35" rx="4" ry="5" fill="#fca5a5" />
+    <circle cx="-50" cy="30" r="6" fill="url(#goldHilt)" stroke="#78350f" stroke-width="1.8" />
+    <circle cx="50" cy="30" r="6" fill="url(#goldHilt)" stroke="#78350f" stroke-width="1.8" />
+    <ellipse cx="0" cy="33" rx="9" ry="11" fill="#ef4444" stroke="#991b1b" stroke-width="2" />
+    <ellipse cx="-2" cy="30" rx="3.5" ry="4.5" fill="#fca5a5" />
 
-    <!-- 3. Grip / Hilt with wrapped texture -->
-    <rect x="-9" y="48" width="18" height="58" rx="4" fill="#0f172a" stroke="#78350f" stroke-width="2" />
-    <line x1="-9" y1="60" x2="9" y2="60" stroke="#facc15" stroke-width="3" />
-    <line x1="-9" y1="74" x2="9" y2="74" stroke="#facc15" stroke-width="3" />
-    <line x1="-9" y1="88" x2="9" y2="88" stroke="#facc15" stroke-width="3" />
+    <!-- Grip / Hilt with wrapped texture -->
+    <rect x="-8" y="42" width="16" height="52" rx="3.5" fill="#0f172a" stroke="#78350f" stroke-width="1.8" />
+    <line x1="-8" y1="52" x2="8" y2="52" stroke="#facc15" stroke-width="2.5" />
+    <line x1="-8" y1="64" x2="8" y2="64" stroke="#facc15" stroke-width="2.5" />
+    <line x1="-8" y1="76" x2="8" y2="76" stroke="#facc15" stroke-width="2.5" />
 
-    <!-- 4. Ornate Gold Pommel with Crystal Core -->
-    <circle cx="0" cy="115" r="16" fill="url(#goldHilt)" stroke="#78350f" stroke-width="3" />
-    <circle cx="0" cy="115" r="8" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5" />
-    <circle cx="-2" cy="113" r="3" fill="#ffffff" />
+    <!-- Ornate Gold Pommel with Cyan Crystal Core -->
+    <circle cx="0" cy="102" r="14" fill="url(#goldHilt)" stroke="#78350f" stroke-width="2.5" />
+    <circle cx="0" cy="102" r="7" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5" />
+    <circle cx="-2" cy="100" r="2.5" fill="#ffffff" />
   </g>
 
-  <!-- Big Diamond Sparkle on the blade tip -->
-  <polygon points="125,75 131,60 137,75 152,81 137,87 131,102 125,87 110,81" fill="#ffffff" filter="url(#diamondGlow)" />
+  <!-- Big Diamond Sparkle on Blade Tip -->
+  <polygon points="126,80 132,65 138,80 153,86 138,92 132,107 126,92 111,86" fill="#ffffff" filter="url(#diamondGlow)" />
+  <circle cx="132" cy="86" r="3" fill="#fef08a" />
 
-  <!-- App Title Banner & Text: 「ひらめきクエスト！」 -->
-  <g transform="translate(256, 420)">
-    <rect x="-210" y="-36" width="420" height="74" rx="37" fill="#020617" opacity="0.8" />
-    <rect
-      x="-204"
-      y="-32"
-      width="408"
-      height="66"
-      rx="33"
-      fill="#1e1b4b"
-      stroke="#38bdf8"
-      stroke-width="4"
-    />
-    <rect x="-192" y="-22" width="384" height="46" rx="23" fill="#0f172a" />
+  <!-- Circular Safe-Zone App Title Plaque / Ribbon Badge -->
+  <!-- Positioned strictly inside the inner circle: Center (256, 372), Width 264, Height 86 -->
+  <!-- Max distance from center (256, 256): sqrt(132^2 + (415-256)^2) = sqrt(17424 + 25281) = 206px < 236px circle radius! -->
+  <g transform="translate(256, 370)">
+    <!-- Plaque Outer Shadow -->
+    <rect x="-132" y="-40" width="264" height="80" rx="24" fill="#020617" opacity="0.9" filter="url(#goldGlow)" />
+    
+    <!-- Plaque Gold Border -->
+    <rect x="-128" y="-36" width="256" height="72" rx="20" fill="#090d26" stroke="url(#goldRim)" stroke-width="3.5" />
+    
+    <!-- Plaque Inner Frame -->
+    <rect x="-120" y="-28" width="240" height="56" rx="14" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2" opacity="0.95" />
 
+    <!-- Ribbon Side Gems -->
+    <circle cx="-106" cy="0" r="4.5" fill="#facc15" stroke="#78350f" stroke-width="1.5" />
+    <polygon points="-106,-8 -103,-4 -99,0 -103,4 -106,8 -109,4 -113,0 -109,-4" fill="#fef08a" opacity="0.8" />
+    
+    <circle cx="106" cy="0" r="4.5" fill="#facc15" stroke="#78350f" stroke-width="1.5" />
+    <polygon points="106,-8 109,-4 113,0 109,4 106,8 103,4 99,0 103,-4" fill="#fef08a" opacity="0.8" />
+
+    <!-- Two-Line Stacked Title: Ultra Legible on Mobile / Android Circle Mask -->
+    <!-- Line 1: 「ひらめき」 -->
     <text
       x="0"
-      y="14"
+      y="-4"
       text-anchor="middle"
-      font-family="'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
+      font-family="'IPAPGothic', 'IPAGothic', 'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
       font-weight="900"
-      font-size="38"
-      fill="#78350f"
+      font-size="28"
+      fill="#451a03"
       stroke="#451a03"
-      stroke-width="8"
+      stroke-width="5"
       stroke-linejoin="round"
-      letter-spacing="1.5"
+      letter-spacing="2"
     >
-      ひらめきクエスト！
+      ひらめき
     </text>
     <text
       x="0"
-      y="11"
+      y="-4"
       text-anchor="middle"
-      font-family="'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
+      font-family="'IPAPGothic', 'IPAGothic', 'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
       font-weight="900"
-      font-size="38"
+      font-size="28"
       fill="url(#textGold)"
       stroke="#713f12"
-      stroke-width="2"
-      letter-spacing="1.5"
+      stroke-width="1.2"
+      letter-spacing="2"
     >
-      ひらめきクエスト！
+      ひらめき
     </text>
-    <circle cx="-160" cy="-6" r="3" fill="#ffffff" />
-    <polygon points="175,-12 178,-6 184,-3 178,0 175,6 172,0 166,-3 172,-6" fill="#fef08a" />
+
+    <!-- Line 2: 「クエスト！」 -->
+    <text
+      x="0"
+      y="22"
+      text-anchor="middle"
+      font-family="'IPAPGothic', 'IPAGothic', 'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
+      font-weight="900"
+      font-size="24"
+      fill="#451a03"
+      stroke="#451a03"
+      stroke-width="5"
+      stroke-linejoin="round"
+      letter-spacing="2"
+    >
+      クエスト！
+    </text>
+    <text
+      x="0"
+      y="22"
+      text-anchor="middle"
+      font-family="'IPAPGothic', 'IPAGothic', 'M PLUS Rounded 1c', 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif"
+      font-weight="900"
+      font-size="24"
+      fill="url(#textGold)"
+      stroke="#713f12"
+      stroke-width="1.2"
+      letter-spacing="2"
+    >
+      クエスト！
+    </text>
   </g>
 </svg>

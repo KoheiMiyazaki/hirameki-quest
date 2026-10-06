@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+const fs = require('fs');
+const path = require('path');
+const sharp = require('sharp');
+
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <!-- Deep Cosmic Radial Gradient -->
     <radialGradient id="spaceGrad" cx="50%" cy="38%" r="68%">
@@ -207,4 +211,47 @@
       クエスト！
     </text>
   </g>
-</svg>
+</svg>`;
+
+async function generateAll() {
+  const publicDir = path.resolve(__dirname, '../public');
+  const imagesDir = path.resolve(publicDir, 'images');
+
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+
+  // 1. Write SVG to public/icon.svg and public/images/icon.svg
+  fs.writeFileSync(path.join(publicDir, 'icon.svg'), svgContent, 'utf-8');
+  fs.writeFileSync(path.join(imagesDir, 'icon.svg'), svgContent, 'utf-8');
+  console.log('Saved SVG icon.');
+
+  const svgBuffer = Buffer.from(svgContent);
+
+  // 2. Render 512x512
+  const png512 = await sharp(svgBuffer).resize(512, 512).png().toBuffer();
+  fs.writeFileSync(path.join(publicDir, 'icon.png'), png512);
+  fs.writeFileSync(path.join(publicDir, 'icon-512.png'), png512);
+  fs.writeFileSync(path.join(imagesDir, 'icon.png'), png512);
+  fs.writeFileSync(path.join(imagesDir, 'icon-512.png'), png512);
+  console.log('Saved 512x512 PNG icons.');
+
+  // 3. Render 192x192
+  const png192 = await sharp(svgBuffer).resize(192, 192).png().toBuffer();
+  fs.writeFileSync(path.join(publicDir, 'icon-192.png'), png192);
+  fs.writeFileSync(path.join(imagesDir, 'icon-192.png'), png192);
+  console.log('Saved 192x192 PNG icons.');
+
+  // 4. Render 180x180 for iOS Apple Touch Icon
+  const png180 = await sharp(svgBuffer).resize(180, 180).png().toBuffer();
+  fs.writeFileSync(path.join(publicDir, 'apple-touch-icon.png'), png180);
+  fs.writeFileSync(path.join(imagesDir, 'apple-touch-icon.png'), png180);
+  console.log('Saved 180x180 Apple Touch Icons.');
+
+  console.log('All circular PWA icons generated successfully!');
+}
+
+generateAll().catch((err) => {
+  console.error('Failed to generate icons:', err);
+  process.exit(1);
+});

@@ -42,7 +42,11 @@ export type MonsterSvgType =
   // 🏹 スケルトン・ゼロ・ブローク
   | 'skeleton_zero_broke'
   // 🛏️ ベッド・ヘッド
-  | 'bed_head';
+  | 'bed_head'
+  // 👑 強敵ボスキャラクター（3ステージ毎に出現）
+  | 'inferno_dragon'
+  | 'ancient_golem'
+  | 'archdemon_lord';
 
 export interface EnemyDefinition {
   id: string;
@@ -53,6 +57,20 @@ export interface EnemyDefinition {
   imagePath?: string | null;
   bgGradient: string;
   flavor: string;
+  isBoss?: boolean;
+}
+
+/**
+ * 👑 ボスキャラクター専用データ定義
+ * （通常モンスターと明確に分離し、今後の追加・管理を容易に保つ）
+ */
+export interface BossDefinition extends EnemyDefinition {
+  isBoss: true;
+  bossTitle: string;        // 例: 「灼熱の暴君」
+  bossSubtitleEn: string;   // 例: "INFERNO DRAGON"
+  introQuote: string;       // カットイン時の決め台詞
+  themeColor: 'red' | 'cyan' | 'purple';
+  auraRgb: string;          // 演出用RGB
 }
 
 export interface QuizQuestion {
@@ -368,6 +386,72 @@ export const ENEMY_LIST: EnemyDefinition[] = [
   },
 ];
 
+/**
+ * ==========================================================================
+ * 👑 ボスキャラクター一覧（3ステージクリア毎に降臨する強大な大ボスたち）
+ * 通常モンスターとは独立して管理され、今後も自由にボスを追加可能
+ * ==========================================================================
+ */
+export const BOSS_LIST: BossDefinition[] = [
+  // 1. インフェルノ・ドラゴン（王道RPGの灼熱の巨竜）
+  {
+    id: 'boss_inferno_dragon',
+    name: 'インフェルノ・ドラゴン',
+    bossTitle: '灼熱（しゃくねつ）の暴君（ぼうくん）',
+    bossSubtitleEn: 'INFERNO DRAGON',
+    categoryTag: '👑 大ボス',
+    svgType: 'inferno_dragon',
+    imagePath: null,
+    bgGradient: 'from-red-950 via-zinc-950 to-black',
+    flavor: 'マグマから目覚（めざ）めた紅蓮（ぐれん）の竜（りゅう）！炎（ほのお）で全（すべ）てを燃（も）やすぞ！',
+    introQuote: '「グオオオッ！ 我（わ）が紅蓮（ぐれん）の業火（ごうか）に耐（た）えられるかな！？」',
+    themeColor: 'red',
+    auraRgb: '239, 68, 68',
+    isBoss: true,
+  },
+  // 2. エンシェント・ゴーレム（古代文明の巨神）
+  {
+    id: 'boss_ancient_golem',
+    name: 'エンシェント・ゴーレム',
+    bossTitle: '古代（こだい）遺跡（いせき）の巨神（きょしん）',
+    bossSubtitleEn: 'ANCIENT GOLEM',
+    categoryTag: '👑 大ボス',
+    svgType: 'ancient_golem',
+    imagePath: null,
+    bgGradient: 'from-cyan-950 via-zinc-950 to-black',
+    flavor: '古代（こだい）の遺跡（いせき）を守（まも）る、青（あお）い魔力（まりょく）の巨神（きょしん）ゴーレム！',
+    introQuote: '「侵入者（しんにゅうしゃ）……排除（はいじょ）……！ 古代（こだい）の怒（いか）りを喰（く）らえ……！」',
+    themeColor: 'cyan',
+    auraRgb: '6, 182, 212',
+    isBoss: true,
+  },
+  // 3. 魔王 アークデーモン（暗黒次元の支配者）
+  {
+    id: 'boss_archdemon_lord',
+    name: '魔王（まおう） アークデーモン',
+    bossTitle: '深淵（しんえん）の支配者（しはいしゃ）',
+    bossSubtitleEn: 'ARCHDEMON OVERLORD',
+    categoryTag: '👑 大ボス',
+    svgType: 'archdemon_lord',
+    imagePath: null,
+    bgGradient: 'from-purple-950 via-zinc-950 to-black',
+    flavor: '闇（やみ）の世界（せかい）から現（あらわ）れた、漆黒（しっこく）の力（ちから）をもつ大魔王（だいまおう）！',
+    introQuote: '「ククク……愚（おろ）かな人間（にんげん）よ、我（わ）が闇（やみ）にひれ伏（ふ）すがよい！」',
+    themeColor: 'purple',
+    auraRgb: '168, 85, 247',
+    isBoss: true,
+  },
+];
+
+/**
+ * ランダムなボスキャラを選定（直前のボスと被らない）
+ */
+export const getRandomBoss = (excludeId?: string): BossDefinition => {
+  const filtered = excludeId ? BOSS_LIST.filter((b) => b.id !== excludeId) : BOSS_LIST;
+  const pool = filtered.length > 0 ? filtered : BOSS_LIST;
+  return pool[Math.floor(Math.random() * pool.length)];
+};
+
 // --- プレイヤー武器データ ---
 export const WEAPON_LIST: WeaponItem[] = [
   {
@@ -610,55 +694,49 @@ export interface MathDifficultyStageRule {
   /** この難易度をクリアするステージ数（手作業で自由に変更可能！例: 5なら5ステージ分出題） */
   stagesToClear: number;
   type:
-    | 'single_basic'       // レベル1: 1桁の足し算・引き算（答え5以下）
-    | 'single_standard'    // レベル2: 1桁の足し算・引き算（答え10以下）
-    | 'double_and_single'  // レベル3: 2桁と1桁の足し算・引き算
-    | 'three_single'       // レベル4: 3つの一桁の足し算・引き算【新規】
-    | 'double_and_double'  // レベル5: 2桁と2桁の足し算・引き算
-    | 'three_double';      // レベル6: 3つの二桁の足し算・引き算【新規】
+    | 'single_digits'      // レベル1: 1桁の足し算・引き算（ステージ1〜10対応）
+    | 'single_basic'       // 互換用
+    | 'single_standard'    // 互換用
+    | 'double_and_single'  // レベル2: 2桁と1桁の足し算・引き算
+    | 'three_single'       // レベル3: 3つの一桁の足し算・引き算
+    | 'double_and_double'  // レベル4: 2桁と2桁の足し算・引き算
+    | 'three_double';      // レベル5: 3つの二桁の足し算・引き算
 }
 
 export const MATH_DIFFICULTY_RULES: MathDifficultyStageRule[] = [
   {
     level: 1,
-    title: '1桁の足し算・引き算（答え5以下）',
-    description: '答えが5までの小さな計算',
-    stagesToClear: 5, // ★手作業で変更可能（例: 5ステージ分出題）
-    type: 'single_basic',
+    title: '1桁の足し算引き算',
+    description: '1桁同士の計算（ステージ1〜10対応）',
+    stagesToClear: 10, // ★ステージ1〜10対応
+    type: 'single_digits',
   },
   {
     level: 2,
-    title: '1桁の足し算・引き算（答え10以下）',
-    description: '10までの数の足し算・引き算',
-    stagesToClear: 5, // ★手作業で変更可能（例: 5ステージ分出題）
-    type: 'single_standard',
-  },
-  {
-    level: 3,
     title: '2桁と1桁の足し算・引き算',
     description: '二桁の数字と一桁の数字の計算（例: 24 + 5, 38 - 6）',
-    stagesToClear: 5, // ★手作業で変更可能（例: 5ステージ分出題）
+    stagesToClear: 5, // ステージ11〜15
     type: 'double_and_single',
   },
   {
-    level: 4,
+    level: 3,
     title: '3つの1桁の足し算・引き算',
     description: '3つの一桁の数字の計算（例: 3 + 2 + 4, 8 - 3 + 2）',
-    stagesToClear: 5, // ★手作業で変更可能（例: 5ステージ分出題）
+    stagesToClear: 5, // ステージ16〜20
     type: 'three_single',
   },
   {
-    level: 5,
+    level: 4,
     title: '2桁と2桁の足し算・引き算',
     description: '二桁同士の本格的な計算（例: 24 + 35, 68 - 25）',
-    stagesToClear: 5, // ★手作業で変更可能（例: 5ステージ分出題）
+    stagesToClear: 5, // ステージ21〜25
     type: 'double_and_double',
   },
   {
-    level: 6,
+    level: 5,
     title: '3つの2桁の足し算・引き算',
     description: '3つの二桁の数字の計算（例: 12 + 25 + 10, 65 - 20 - 15）',
-    stagesToClear: 9999, // ★最終レベル（以降ずっとこの難易度）
+    stagesToClear: 9999, // ★最終レベル（ステージ26以降）
     type: 'three_double',
   },
 ];
@@ -703,37 +781,22 @@ export function generateStageMathQuestion(stage: number): QuizQuestion {
   let explanation = '';
 
   switch (currentRule.type) {
-    case 'single_basic': {
-      // レベル1: 1桁の足し算・引き算（答え5以下）
-      const isAdd = Math.random() < 0.5;
-      if (isAdd) {
-        ans = Math.floor(Math.random() * 4) + 2; // 2, 3, 4, 5
-        const a = Math.floor(Math.random() * (ans - 1)) + 1;
-        const b = ans - a;
-        formulaQuestion = `${a} + ${b} は？`;
-        explanation = `${a} + ${b} は ${ans} だね！`;
-      } else {
-        const a = Math.floor(Math.random() * 4) + 2; // 2..5
-        const b = Math.floor(Math.random() * (a - 1)) + 1;
-        ans = a - b;
-        formulaQuestion = `${a} − ${b} は？`;
-        explanation = `${a} − ${b} は ${ans} だね！`;
-      }
-      break;
-    }
-
+    case 'single_digits':
+    case 'single_basic':
     case 'single_standard': {
-      // レベル2: 1桁の足し算・引き算（答え10以下）
+      // レベル1: 1桁の足し算・引き算（ステージ1〜10対応）
       const isAdd = Math.random() < 0.5;
       if (isAdd) {
-        ans = Math.floor(Math.random() * 5) + 6; // 6..10
-        const a = Math.floor(Math.random() * (ans - 1)) + 1;
-        const b = ans - a;
+        // 1桁の足し算（1..9 + 1..9、答え2..18）
+        const a = Math.floor(Math.random() * 9) + 1; // 1..9
+        const b = Math.floor(Math.random() * 9) + 1; // 1..9
+        ans = a + b;
         formulaQuestion = `${a} + ${b} は？`;
         explanation = `${a} + ${b} は ${ans} だね！`;
       } else {
-        const a = Math.floor(Math.random() * 5) + 6; // 6..10
-        const b = Math.floor(Math.random() * (a - 1)) + 1;
+        // 1桁の引き算（2..9 − 1..(a-1)、引かれる数も引く数も1桁）
+        const a = Math.floor(Math.random() * 8) + 2; // 2..9 (1桁)
+        const b = Math.floor(Math.random() * (a - 1)) + 1; // 1..(a-1) (1桁)
         ans = a - b;
         formulaQuestion = `${a} − ${b} は？`;
         explanation = `${a} − ${b} は ${ans} だね！`;
@@ -742,7 +805,7 @@ export function generateStageMathQuestion(stage: number): QuizQuestion {
     }
 
     case 'double_and_single': {
-      // レベル3: 2桁と1桁の足し算・引き算
+      // レベル2: 2桁と1桁の足し算・引き算
       const isAdd = Math.random() < 0.5;
       if (isAdd) {
         const a = Math.floor(Math.random() * 80) + 10; // 10..89

@@ -1171,9 +1171,10 @@ export const MonsterRenderer: React.FC<MonsterRendererProps> = ({ type, isHit = 
     );
   }
 
-  // デフォルト：初代ゾンビエレファント
-  return (
-    <svg {...svgBaseProps}>
+  // 21. ゾンビエレファント
+  if (type === 'elephant') {
+    return (
+      <svg {...svgBaseProps}>
       <defs>
         <filter id="purpleShadow" x="-10%" y="-10%" width="120%" height="120%">
           <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#a855f7" floodOpacity="0.5" />
@@ -1305,6 +1306,365 @@ export const MonsterRenderer: React.FC<MonsterRendererProps> = ({ type, isHit = 
         />
         <ellipse cx="106" cy="205" rx="14" ry="12" fill="url(#eleSkin)" stroke="#14532d" strokeWidth="3" />
       </g>
+    </svg>
+    );
+  }
+
+  // =========================================================================
+  // 👑 1. インフェルノ・ドラゴン (BOSS 1: 灼熱の暴君)
+  // =========================================================================
+  if (type === 'inferno_dragon') {
+    return (
+      <svg {...svgBaseProps}>
+        <defs>
+          <radialGradient id="dragonFlame" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="45%" stopColor="#f97316" />
+            <stop offset="85%" stopColor="#dc2626" />
+            <stop offset="100%" stopColor="#7f1d1d" />
+          </radialGradient>
+          <linearGradient id="dragonHorn" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#450a0a" />
+            <stop offset="100%" stopColor="#18181b" />
+          </linearGradient>
+          <linearGradient id="magmaGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#fbbf24" />
+            <stop offset="70%" stopColor="#ea580c" />
+            <stop offset="100%" stopColor="#991b1b" />
+          </linearGradient>
+        </defs>
+
+        {/* 召喚の赤い魔法陣・熱波のオーラ */}
+        <ellipse cx="160" cy="290" rx="95" ry="20" fill="#dc2626" opacity="0.3" />
+        <ellipse cx="160" cy="290" rx="65" ry="12" fill="#f59e0b" opacity="0.4" />
+
+        {/* 巨大なドラゴンの翼（左翼） */}
+        <path
+          d="M125 150 Q50 60 15 75 Q45 115 50 145 Q75 125 90 170 Q110 160 125 150 Z"
+          fill="url(#dragonFlame)"
+          stroke="#450a0a"
+          strokeWidth="3.5"
+        />
+        {/* 左翼の骨組み・爪 */}
+        <path d="M120 155 Q50 70 20 75 L15 65" stroke="#450a0a" strokeWidth="4" fill="none" strokeLinecap="round" />
+        <path d="M50 100 Q45 125 50 145" stroke="#7f1d1d" strokeWidth="2.5" fill="none" />
+
+        {/* 巨大なドラゴンの翼（右翼） */}
+        <path
+          d="M195 150 Q270 60 305 75 Q275 115 270 145 Q245 125 230 170 Q210 160 195 150 Z"
+          fill="url(#dragonFlame)"
+          stroke="#450a0a"
+          strokeWidth="3.5"
+        />
+        {/* 右翼の骨組み・爪 */}
+        <path d="M200 155 Q270 70 300 75 L305 65" stroke="#450a0a" strokeWidth="4" fill="none" strokeLinecap="round" />
+        <path d="M270 100 Q275 125 270 145" stroke="#7f1d1d" strokeWidth="2.5" fill="none" />
+
+        {/* 太いトゲ付き尻尾 */}
+        <path
+          d="M125 250 Q60 280 40 230 Q60 215 95 240 Z"
+          fill="#991b1b"
+          stroke="#450a0a"
+          strokeWidth="3.5"
+        />
+        <polygon points="40,230 25,225 35,245" fill="#f59e0b" stroke="#450a0a" strokeWidth="2" />
+        <polygon points="65,250 55,268 78,260" fill="#f59e0b" stroke="#450a0a" strokeWidth="2" />
+
+        {/* 強靭な後脚と鋭い爪 */}
+        <rect x="100" y="235" width="34" height="42" rx="12" fill="#7f1d1d" stroke="#450a0a" strokeWidth="3.5" />
+        <rect x="186" y="235" width="34" height="42" rx="12" fill="#7f1d1d" stroke="#450a0a" strokeWidth="3.5" />
+        <polygon points="98,277 105,270 112,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <polygon points="112,277 119,268 126,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <polygon points="126,277 133,270 140,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <polygon points="184,277 191,270 198,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <polygon points="198,277 205,268 212,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <polygon points="212,277 219,270 226,277" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+
+        {/* ドラゴンの胴体（漆黒と暗赤色の鱗） */}
+        <path
+          d="M115 155 Q160 140 205 155 L215 245 Q160 260 105 245 Z"
+          fill="#991b1b"
+          stroke="#450a0a"
+          strokeWidth="4"
+        />
+
+        {/* 胸のマグマ発光プレート（腹部） */}
+        <path
+          d="M135 170 Q160 162 185 170 L180 235 Q160 248 140 235 Z"
+          fill="url(#magmaGlow)"
+          stroke="#f59e0b"
+          strokeWidth="2.5"
+        />
+        {/* 腹部の横リブ段差 */}
+        <line x1="140" y1="188" x2="180" y2="188" stroke="#78350f" strokeWidth="2.5" />
+        <line x1="142" y1="205" x2="178" y2="205" stroke="#78350f" strokeWidth="2.5" />
+        <line x1="145" y1="222" x2="175" y2="222" stroke="#78350f" strokeWidth="2.5" />
+
+        {/* 屈強な腕と燃える鉤爪 */}
+        <path d="M115 185 Q90 195 85 215" stroke="#7f1d1d" strokeWidth="10" strokeLinecap="round" />
+        <polygon points="82,215 75,225 88,222" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+        <path d="M205 185 Q230 195 235 215" stroke="#7f1d1d" strokeWidth="10" strokeLinecap="round" />
+        <polygon points="238,215 245,225 232,222" fill="#fbbf24" stroke="#450a0a" strokeWidth="1.5" />
+
+        {/* 巨大な双角（頭部ホーン） */}
+        <path d="M132 105 Q100 45 75 40 Q95 75 125 108" fill="url(#dragonHorn)" stroke="#09090b" strokeWidth="3" />
+        <path d="M188 105 Q220 45 245 40 Q225 75 195 108" fill="url(#dragonHorn)" stroke="#09090b" strokeWidth="3" />
+
+        {/* 頭部（凶悪なフェイス） */}
+        <path
+          d="M125 110 L160 85 L195 110 L200 155 Q160 170 120 155 Z"
+          fill="#b91c1c"
+          stroke="#450a0a"
+          strokeWidth="4"
+        />
+        {/* 額のトサカ・ブレード */}
+        <polygon points="160,70 152,100 168,100" fill="#f59e0b" stroke="#78350f" strokeWidth="2" />
+
+        {/* 鋭い黄金の瞳（爬虫類のスリット目） */}
+        <ellipse cx="145" cy="120" rx="9" ry="11" fill="#fef08a" stroke="#ca8a04" strokeWidth="2" />
+        <ellipse cx="145" cy="120" rx="2.5" ry="9" fill="#09090b" />
+        <ellipse cx="175" cy="120" rx="9" ry="11" fill="#fef08a" stroke="#ca8a04" strokeWidth="2" />
+        <ellipse cx="175" cy="120" rx="2.5" ry="9" fill="#09090b" />
+
+        {/* 牙の並ぶ凶悪な顎 */}
+        <path d="M138 140 Q160 148 182 140" stroke="#450a0a" strokeWidth="3" fill="none" />
+        <polygon points="144,140 147,148 150,140" fill="#ffffff" stroke="#450a0a" strokeWidth="1" />
+        <polygon points="154,141 157,150 160,141" fill="#ffffff" stroke="#450a0a" strokeWidth="1" />
+        <polygon points="160,141 163,150 166,141" fill="#ffffff" stroke="#450a0a" strokeWidth="1" />
+        <polygon points="170,140 173,148 176,140" fill="#ffffff" stroke="#450a0a" strokeWidth="1" />
+
+        {/* 鼻孔から噴き出す紅蓮の炎 */}
+        <path d="M152 134 Q135 130 130 125" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M168 134 Q185 130 190 125" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  // =========================================================================
+  // 👑 2. エンシェント・ゴーレム (BOSS 2: 古代遺跡の巨神)
+  // =========================================================================
+  if (type === 'ancient_golem') {
+    return (
+      <svg {...svgBaseProps}>
+        <defs>
+          <linearGradient id="golemStone" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="50%" stopColor="#475569" />
+            <stop offset="100%" stopColor="#1e293b" />
+          </linearGradient>
+          <radialGradient id="runeCyanGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#a5f3fc" />
+            <stop offset="40%" stopColor="#22d3ee" />
+            <stop offset="80%" stopColor="#0891b2" />
+            <stop offset="100%" stopColor="#164e63" />
+          </radialGradient>
+        </defs>
+
+        {/* 古代の浮遊魔法陣 */}
+        <ellipse cx="160" cy="290" rx="90" ry="18" fill="#0891b2" opacity="0.3" />
+        <ellipse cx="160" cy="290" rx="60" ry="10" fill="#22d3ee" opacity="0.4" />
+
+        {/* 浮遊する巨石の肩アーマー（左） */}
+        <polygon
+          points="60,95 105,75 110,135 55,145"
+          fill="url(#golemStone)"
+          stroke="#0f172a"
+          strokeWidth="4"
+        />
+        {/* 左肩の古代ルーン発光ライン */}
+        <line x1="75" y1="90" x2="95" y2="120" stroke="#22d3ee" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx="85" cy="105" r="3" fill="#ffffff" />
+
+        {/* 浮遊する巨石の肩アーマー（右） */}
+        <polygon
+          points="260,95 215,75 210,135 265,145"
+          fill="url(#golemStone)"
+          stroke="#0f172a"
+          strokeWidth="4"
+        />
+        {/* 右肩の古代ルーン発光ライン */}
+        <line x1="245" y1="90" x2="225" y2="120" stroke="#22d3ee" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx="235" cy="105" r="3" fill="#ffffff" />
+
+        {/* 巨大な浮遊する岩石の拳（左手） */}
+        <g>
+          <polygon points="35,175 75,160 85,210 40,225" fill="url(#golemStone)" stroke="#0f172a" strokeWidth="4" />
+          <circle cx="60" cy="190" r="6" fill="url(#runeCyanGlow)" />
+        </g>
+        {/* 巨大な浮遊する岩石の拳（右手） */}
+        <g>
+          <polygon points="285,175 245,160 235,210 280,225" fill="url(#golemStone)" stroke="#0f172a" strokeWidth="4" />
+          <circle cx="260" cy="190" r="6" fill="url(#runeCyanGlow)" />
+        </g>
+
+        {/* 重厚な石柱の下半身 */}
+        <rect x="115" y="225" width="40" height="55" rx="8" fill="url(#golemStone)" stroke="#0f172a" strokeWidth="4" />
+        <rect x="165" y="225" width="40" height="55" rx="8" fill="url(#golemStone)" stroke="#0f172a" strokeWidth="4" />
+        <line x1="135" y1="240" x2="135" y2="265" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" />
+        <line x1="185" y1="240" x2="185" y2="265" stroke="#22d3ee" strokeWidth="3" strokeLinecap="round" />
+
+        {/* 巨石の胴体（マッシブな石造りの胸壁） */}
+        <polygon
+          points="100,120 220,120 205,235 115,235"
+          fill="url(#golemStone)"
+          stroke="#0f172a"
+          strokeWidth="4.5"
+        />
+
+        {/* 胸の中央：巨大なルーン魔力コア（青き発光ジェム） */}
+        <circle cx="160" cy="175" r="22" fill="#0891b2" stroke="#0f172a" strokeWidth="3" />
+        <circle cx="160" cy="175" r="16" fill="url(#runeCyanGlow)" />
+        <circle cx="160" cy="175" r="6" fill="#ffffff" />
+        {/* コアから全身へ走るルーン回路 */}
+        <path d="M160 153 L160 128 M160 197 L160 222 M138 175 L115 175 M182 175 L205 175" stroke="#22d3ee" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1="145" y1="160" x2="125" y2="140" stroke="#06b6d4" strokeWidth="2.5" />
+        <line x1="175" y1="160" x2="195" y2="140" stroke="#06b6d4" strokeWidth="2.5" />
+
+        {/* 巨石の頭部（古代の鉄壁兜） */}
+        <polygon
+          points="125,70 195,70 185,125 135,125"
+          fill="url(#golemStone)"
+          stroke="#0f172a"
+          strokeWidth="4"
+        />
+        {/* 頭頂部の古代の石冠 */}
+        <polygon points="140,55 160,40 180,55 170,70 150,70" fill="#334155" stroke="#0f172a" strokeWidth="3" />
+
+        {/* 横長の単眼モノアイスリット（光り輝く青い瞳） */}
+        <rect x="135" y="92" width="50" height="12" rx="3" fill="#0f172a" />
+        <ellipse cx="160" cy="98" rx="14" ry="4" fill="url(#runeCyanGlow)" />
+        <circle cx="160" cy="98" r="3" fill="#ffffff" />
+
+        {/* 浮遊するルーン結晶石（左右を漂う） */}
+        <polygon points="80,50 90,65 80,80 70,65" fill="url(#runeCyanGlow)" stroke="#0f172a" strokeWidth="1.5" />
+        <polygon points="240,50 250,65 240,80 230,65" fill="url(#runeCyanGlow)" stroke="#0f172a" strokeWidth="1.5" />
+      </svg>
+    );
+  }
+
+  // =========================================================================
+  // 👑 3. 魔王 アークデーモン (BOSS 3: 深淵の支配者)
+  // =========================================================================
+  if (type === 'archdemon_lord') {
+    return (
+      <svg {...svgBaseProps}>
+        <defs>
+          <radialGradient id="demonVoid" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f43f5e" />
+            <stop offset="35%" stopColor="#a855f7" />
+            <stop offset="70%" stopColor="#4c1d95" />
+            <stop offset="100%" stopColor="#09090b" />
+          </radialGradient>
+          <linearGradient id="demonArmor" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#312e81" />
+            <stop offset="50%" stopColor="#1e1b4b" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+          <linearGradient id="capeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#991b1b" />
+            <stop offset="100%" stopColor="#450a0a" />
+          </linearGradient>
+        </defs>
+
+        {/* 暗黒の深淵オーラ */}
+        <ellipse cx="160" cy="290" rx="90" ry="18" fill="#7e22ce" opacity="0.3" />
+        <ellipse cx="160" cy="290" rx="60" ry="10" fill="#a855f7" opacity="0.4" />
+
+        {/* 漆黒と深紅の翻る魔王マント（背面） */}
+        <path
+          d="M100 130 Q30 180 20 280 Q90 260 130 250 Z"
+          fill="url(#capeGradient)"
+          stroke="#09090b"
+          strokeWidth="3.5"
+        />
+        <path
+          d="M220 130 Q290 180 300 280 Q230 260 190 250 Z"
+          fill="url(#capeGradient)"
+          stroke="#09090b"
+          strokeWidth="3.5"
+        />
+
+        {/* 巨大な悪魔の翼（左翼） */}
+        <path
+          d="M130 140 Q60 70 25 90 Q40 135 60 160 Q85 145 130 170 Z"
+          fill="#1e1b4b"
+          stroke="#09090b"
+          strokeWidth="3.5"
+        />
+        <path d="M125 145 Q65 75 30 90" stroke="#a855f7" strokeWidth="2.5" fill="none" />
+
+        {/* 巨大な悪魔の翼（右翼） */}
+        <path
+          d="M190 140 Q260 70 295 90 Q280 135 260 160 Q235 145 190 170 Z"
+          fill="#1e1b4b"
+          stroke="#09090b"
+          strokeWidth="3.5"
+        />
+        <path d="M195 145 Q255 75 290 90" stroke="#a855f7" strokeWidth="2.5" fill="none" />
+
+        {/* 漆黒の魔王甲冑の脚部 */}
+        <rect x="120" y="235" width="30" height="48" rx="8" fill="url(#demonArmor)" stroke="#09090b" strokeWidth="3" />
+        <rect x="170" y="235" width="30" height="48" rx="8" fill="url(#demonArmor)" stroke="#09090b" strokeWidth="3" />
+        {/* 金の爪先 */}
+        <polygon points="115,283 125,273 140,283" fill="#fbbf24" stroke="#09090b" strokeWidth="1.5" />
+        <polygon points="165,283 175,273 190,283" fill="#fbbf24" stroke="#09090b" strokeWidth="1.5" />
+
+        {/* 漆黒の鎧の胴体（金の縁取り） */}
+        <path
+          d="M115 135 Q160 125 205 135 L195 240 Q160 250 125 240 Z"
+          fill="url(#demonArmor)"
+          stroke="#fbbf24"
+          strokeWidth="3.5"
+        />
+
+        {/* 胸の中央の魔眼ジュエル（深淵のコア） */}
+        <polygon points="160,165 175,185 160,205 145,185" fill="url(#demonVoid)" stroke="#fbbf24" strokeWidth="2" />
+        <circle cx="160" cy="185" r="4" fill="#ffffff" />
+
+        {/* 魔王の腕と闇の魔剣 */}
+        <path d="M115 160 Q85 180 75 210" stroke="url(#demonArmor)" strokeWidth="10" strokeLinecap="round" />
+        <circle cx="75" cy="210" r="7" fill="#fbbf24" />
+
+        {/* 右手に握る深淵の魔剣（大剣） */}
+        <path d="M205 160 Q235 180 245 205" stroke="url(#demonArmor)" strokeWidth="10" strokeLinecap="round" />
+        <g transform="translate(245, 170) rotate(25)">
+          <rect x="-4" y="0" width="8" height="85" rx="3" fill="#4c1d95" stroke="#a855f7" strokeWidth="2" />
+          <line x1="0" y1="0" x2="0" y2="85" stroke="#e11d48" strokeWidth="2" />
+          <polygon points="-12,0 12,0 0,-15" fill="#fbbf24" stroke="#09090b" strokeWidth="2" />
+          <circle cx="0" cy="-6" r="3" fill="#ef4444" />
+        </g>
+
+        {/* 雄大で凶悪な悪魔の角（ダークホーン） */}
+        <path d="M130 95 Q90 50 65 35 Q85 65 118 100" fill="#09090b" stroke="#7e22ce" strokeWidth="2.5" />
+        <path d="M190 95 Q230 50 255 35 Q235 65 202 100" fill="#09090b" stroke="#7e22ce" strokeWidth="2.5" />
+
+        {/* 魔王の頭部兜と黄金の冠 */}
+        <polygon
+          points="130,85 160,65 190,85 180,135 140,135"
+          fill="url(#demonArmor)"
+          stroke="#09090b"
+          strokeWidth="3.5"
+        />
+        {/* 黄金の三叉魔王冠 */}
+        <polygon points="140,75 145,55 152,70 160,48 168,70 175,55 180,75" fill="#fbbf24" stroke="#09090b" strokeWidth="2" />
+
+        {/* 兜の闇から光る真紅の邪眼 */}
+        <ellipse cx="148" cy="105" rx="7" ry="4" fill="#ef4444" />
+        <circle cx="148" cy="105" r="2" fill="#ffffff" />
+        <ellipse cx="172" cy="105" rx="7" ry="4" fill="#ef4444" />
+        <circle cx="172" cy="105" r="2" fill="#ffffff" />
+
+        {/* 不敵な嘲笑の口元 */}
+        <path d="M150 122 Q160 128 170 122" stroke="#fbbf24" strokeWidth="2" fill="none" />
+      </svg>
+    );
+  }
+
+  // デフォルトフォールバック
+  return (
+    <svg {...svgBaseProps}>
+      <circle cx="160" cy="160" r="70" fill="#dc2626" opacity="0.8" />
+      <text x="160" y="165" textAnchor="middle" fill="#ffffff" fontSize="24" fontWeight="bold">BOSS</text>
     </svg>
   );
 };

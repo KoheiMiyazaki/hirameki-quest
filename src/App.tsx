@@ -20,6 +20,9 @@ import {
 import {
   GAME_CONFIG,
   ENEMY_LIST,
+  BOSS_LIST,
+  getRandomBoss,
+  BossDefinition,
   WEAPON_LIST,
   ARMOR_LIST,
   QUIZ_DATABASE,
@@ -104,6 +107,30 @@ export default function App() {
   const [equippedWeapon, setEquippedWeapon] = useState<WeaponItem>(WEAPON_LIST[0]); // 初期「なし」
   const [equippedArmor, setEquippedArmor] = useState<ArmorItem>(ARMOR_LIST[0]);     // 初期「なし」
 
+  // 🪙 所持金（おかね）ステート（localStorageで永続化）
+  const [money, setMoney] = useState<number>(() => {
+    try {
+      const savedMoney = localStorage.getItem('hirameki_money');
+      return savedMoney !== null ? parseInt(savedMoney, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [lastEarnedStageMoney, setLastEarnedStageMoney] = useState<number>(0);
+  const [lastEarnedBossMoney, setLastEarnedBossMoney] = useState<number>(0);
+
+  // 🪙 敵撃破時のコイン飛び散り演出用パーティクルステート
+  interface CoinParticle {
+    id: number;
+    x: number;
+    y: number;
+    rot: number;
+    scale: number;
+    delay: number;
+    size: number;
+  }
+  const [coinBurstParticles, setCoinBurstParticles] = useState<CoinParticle[]>([]);
+
   // 敵ステータス（ステージが進むたびにランダム選定）
   const getRandomEnemy = (excludeId?: string): EnemyDefinition => {
     const pool = ENEMY_LIST.filter((e) => e.id !== excludeId);
@@ -112,8 +139,23 @@ export default function App() {
   };
 
   const [currentEnemyDef, setCurrentEnemyDef] = useState<EnemyDefinition>(() => getRandomEnemy());
-  const enemyMaxHp = GAME_CONFIG.calculateEnemyHp(stage);
   const [enemyHp, setEnemyHp] = useState<number>(GAME_CONFIG.calculateEnemyHp(1));
+
+  // 👑 ボス戦ステート（3ステージクリア毎に登場）
+  const [isBossBattle, setIsBossBattle] = useState<boolean>(false);
+  const [currentBossDef, setCurrentBossDef] = useState<BossDefinition | null>(null);
+  const [bossStageOrigin, setBossStageOrigin] = useState<number>(1);
+  const [bossMaxHp, setBossMaxHp] = useState<number>(6);
+  const [bossAttack, setBossAttack] = useState<number>(2);
+  const [showBossCutIn, setShowBossCutIn] = useState<boolean>(false);
+  const [showBossVictory, setShowBossVictory] = useState<boolean>(false);
+
+  // 現在対峙中の敵の最大HP（通常時 vs ボス戦時）
+  const activeEnemyMaxHp = isBossBattle ? bossMaxHp : GAME_CONFIG.calculateEnemyHp(stage);
+  // 現在対峙中の敵の攻撃力（通常時 vs ボス戦時）
+  const activeEnemyAttack = isBossBattle ? bossAttack : GAME_CONFIG.calculateEnemyAttack(stage);
+  // 現在描画する敵キャラクター定義（通常敵 vs ボス敵）
+  const displayEnemyDef: EnemyDefinition = isBossBattle && currentBossDef ? currentBossDef : currentEnemyDef;
 
   // クイズ状態（デフォルトをステージ連動「さんすう自動生成」に設定）
   const [quizMode, setQuizMode] = useState<'database' | 'auto_stage_math'>('auto_stage_math');
@@ -122,7 +164,7 @@ export default function App() {
   const [questionIndex, setQuestionIndex] = useState<number>(0);
   const currentQuestion: QuizQuestion =
     quizMode === 'auto_stage_math'
-      ? (dynamicQuestion || generateStageMathQuestion(stage))
+      ? (dynamicQuestion || generateStageMathQuestion(isBossBattle ? stage + 1 : stage))
       : (questionList[questionIndex % questionList.length] || QUIZ_DATABASE[0]);
 
   // 演出・判定フラグ
@@ -207,10 +249,12 @@ export default function App() {
 
   // --- 6. 回答ボタンタップ処理 ---
   const handleAnswerClick = (choiceIndex: number) => {
-    if (isProcessing || isGameOver || isStageClearing) return;
+    if (isProcessing || isGameOver || isStageClearing || showBossCutIn || showBossVictory) return;
 
     setIsProcessing(true);
     const isCorrect = choiceIndex === currentQuestion.answerIndex;
+    // 出題の難易度ステージ（ボス戦時は stage + 1）
+    const targetQuestionStage = isBossBattle ? stage + 1 : stage;
 
     if (isCorrect) {
       // === 正解時 ===
@@ -231,11 +275,58 @@ export default function App() {
         setEnemyHp((prev) => {
           const nextHp = Math.max(0, prev - attackPower);
 
-          // 敵のHPがゼロになった場合 -> ステージクリア
+          // 敵のHPがゼロになった場合の分岐
           if (nextHp <= 0) {
+            // 🪙 倒した敵キャラのHP × 10円の「おかね」を獲得
+            const earnedCoins = activeEnemyMaxHp * 10;
+            setLastEarnedStageMoney(earnedCoins);
+            setMoney((prev) => {
+              const updated = prev + earnedCoins;
+              try {
+                localStorage.setItem('hirameki_money', updated.toString());
+              } catch {
+                // ignore
+              }
+              return updated;
+            });
+
+            // 🪙 コイン飛び散り演出を生成（通常敵: 数枚（8枚） / ボス: たくさん（26枚））
+            const isBoss = isBossBattle;
+            const coinCount = isBoss ? 26 : 8;
+            const generatedCoins: CoinParticle[] = Array.from({ length: coinCount }, (_, i) => {
+              // 上方向への扇状ランダム角度（-165度 〜 -15度）
+              const minAngle = isBoss ? -170 : -155;
+              const maxAngle = isBoss ? -10 : -25;
+              const angleDeg = minAngle + Math.random() * (maxAngle - minAngle);
+              const angleRad = (angleDeg * Math.PI) / 180;
+              const distance = isBoss ? 80 + Math.random() * 125 : 65 + Math.random() * 80;
+              return {
+                id: i,
+                x: Math.round(Math.cos(angleRad) * distance),
+                y: Math.round(Math.sin(angleRad) * distance), // 負の値（上方向へ飛ぶ）
+                rot: Math.round((Math.random() - 0.5) * 540),
+                scale: Number((0.85 + Math.random() * 0.45).toFixed(2)),
+                delay: Math.round(i * (isBoss ? 22 : 32) + Math.random() * 20),
+                size: Math.round(isBoss ? 26 + Math.random() * 10 : 23 + Math.random() * 6),
+              };
+            });
+            setCoinBurstParticles(generatedCoins);
+            sound.playCoinBurst(isBoss);
+
+            // 約1秒間コイン飛び散り演出を見せた後、ステージクリア/ボス演出へ遷移
             setTimeout(() => {
-              handleStageClear();
-            }, 700);
+              setCoinBurstParticles([]);
+              if (isBossBattle) {
+                // 👑 ボスを討伐した！ -> 豪華な勝利演出
+                handleBossDefeat(earnedCoins);
+              } else if (stage % 3 === 0) {
+                // ⚠️ 3ステージ毎の節目敵を倒した！ -> 強大ボス出現イベント発動！
+                handleTriggerBoss();
+              } else {
+                // 通常のステージクリア
+                handleStageClear();
+              }
+            }, 1050);
           }
           return nextHp;
         });
@@ -246,15 +337,20 @@ export default function App() {
         }, 600);
       }, 400);
 
-      // 1秒間のタメ演出後に次の問題へ
+      // 敵が生き残っている場合のみ1秒後に次の問題へ
       setTimeout(() => {
-        setAnswerState('idle');
-        setIsProcessing(false);
-        if (quizMode === 'auto_stage_math') {
-          setDynamicQuestion(generateStageMathQuestion(stage));
-        } else {
-          setQuestionIndex((prev) => prev + 1);
-        }
+        setEnemyHp((currentHp) => {
+          if (currentHp > 0) {
+            setAnswerState('idle');
+            setIsProcessing(false);
+            if (quizMode === 'auto_stage_math') {
+              setDynamicQuestion(generateStageMathQuestion(targetQuestionStage));
+            } else {
+              setQuestionIndex((prev) => prev + 1);
+            }
+          }
+          return currentHp;
+        });
       }, 1000);
 
     } else {
@@ -262,9 +358,8 @@ export default function App() {
       sound.playWrong();
       setAnswerState('wrong');
 
-      // 今回のダメージ値 = 敵の基礎攻撃値 - 防具値 (最低1ダメージ)
-      const enemyBaseAttack = GAME_CONFIG.calculateEnemyAttack(stage);
-      const incomingDamage = Math.max(1, enemyBaseAttack - equippedArmor.defenseBonus);
+      // 今回のダメージ値 = 敵の攻撃値(ボス時は1.5倍) - 防具値 (最低1ダメージ)
+      const incomingDamage = Math.max(1, activeEnemyAttack - equippedArmor.defenseBonus);
 
       // プレイヤーダメージアニメーション
       setTimeout(() => {
@@ -293,7 +388,7 @@ export default function App() {
         setAnswerState('idle');
         setIsProcessing(false);
         if (quizMode === 'auto_stage_math') {
-          setDynamicQuestion(generateStageMathQuestion(stage));
+          setDynamicQuestion(generateStageMathQuestion(targetQuestionStage));
         } else {
           setQuestionIndex((prev) => prev + 1);
         }
@@ -301,7 +396,75 @@ export default function App() {
     }
   };
 
-  // --- 7. ステージクリア処理 ---
+  // --- 👑 ボス出現イベント（3ステージクリア毎に発動） ---
+  const handleTriggerBoss = () => {
+    // 3種類の強力なボスの中からランダムで1体選定
+    const boss = getRandomBoss(currentBossDef?.id);
+    const stageEnemyHp = GAME_CONFIG.calculateEnemyHp(stage);
+    const stageEnemyAtk = GAME_CONFIG.calculateEnemyAttack(stage);
+
+    // ボスのHPは前回の敵の2倍
+    const calculatedBossHp = stageEnemyHp * 2;
+    // ボスの攻撃力は前回の敵の1.5倍（小数点切り捨て）
+    const calculatedBossAtk = Math.floor(stageEnemyAtk * 1.5);
+
+    setCurrentBossDef(boss);
+    setBossMaxHp(calculatedBossHp);
+    setEnemyHp(calculatedBossHp);
+    setBossAttack(calculatedBossAtk);
+    setBossStageOrigin(stage);
+    setIsBossBattle(true);
+
+    // ボスが出す問題の難易度は前回のステージより1つ上（stage + 1）
+    if (quizMode === 'auto_stage_math') {
+      setDynamicQuestion(generateStageMathQuestion(stage + 1));
+    }
+
+    // スマブラ風カットイン出現演出 & 警告音再生
+    sound.playBossWarning();
+    setShowBossCutIn(true);
+    setAnswerState('idle');
+    setIsProcessing(false);
+  };
+
+  // --- 👑 ボス撃破処理（豪華な勝利演出） ---
+  const handleBossDefeat = (earnedCoins?: number) => {
+    sound.playBossClear();
+    if (earnedCoins) {
+      setLastEarnedBossMoney(earnedCoins);
+    }
+    // 撃破ボーナス: 2,000点加算 & プレイヤーのHP全回復！
+    setScore((prev) => prev + 2000);
+    setPlayerHp(playerMaxHp);
+    setShowBossVictory(true);
+    setAnswerState('idle');
+    setIsProcessing(false);
+  };
+
+  // --- 👑 ボス撃破後に次のステージへ進む ---
+  const handleProceedFromBossVictory = () => {
+    sound.playClick();
+    setShowBossVictory(false);
+    setIsBossBattle(false);
+    setCurrentBossDef(null);
+
+    // ボスはステージにカウントしない（ステージ3のボスを倒したら、次のステージはステージ4）
+    const nextStage = bossStageOrigin + 1;
+    setStage(nextStage);
+
+    // 次ステージの通常敵をランダム選定
+    setCurrentEnemyDef(getRandomEnemy());
+    const nextEnemyHp = GAME_CONFIG.calculateEnemyHp(nextStage);
+    setEnemyHp(nextEnemyHp);
+
+    if (quizMode === 'auto_stage_math') {
+      setDynamicQuestion(generateStageMathQuestion(nextStage));
+    }
+    setAnswerState('idle');
+    setIsProcessing(false);
+  };
+
+  // --- 7. 通常ステージクリア処理 ---
   const handleStageClear = () => {
     setIsStageClearing(true);
     sound.playStageClear();
@@ -322,8 +485,7 @@ export default function App() {
         return nextStage;
       });
 
-      // プレイヤーのHPも少し回復ボーナス(+2)
-      setPlayerHp((prev) => Math.min(playerMaxHp, prev + 2));
+      // ★要件: 通常ステージクリアではHPは回復しない（ボス撃破時のみ回復）
 
       setIsStageClearing(false);
       setAnswerState('idle');
@@ -344,6 +506,10 @@ export default function App() {
     setScore(0);
     setDisplayScore(0);
     setIsNewRecord(false);
+    setIsBossBattle(false);
+    setCurrentBossDef(null);
+    setShowBossCutIn(false);
+    setShowBossVictory(false);
     setCurrentEnemyDef(getRandomEnemy());
     setPlayerHp(GAME_CONFIG.playerInitialHp);
     setEnemyHp(GAME_CONFIG.calculateEnemyHp(1));
@@ -353,12 +519,13 @@ export default function App() {
     }
     setIsGameOver(false);
     setIsStageClearing(false);
+    setCoinBurstParticles([]);
     setAnswerState('idle');
     setIsProcessing(false);
   };
 
-  // 敵のHP割合計算
-  const enemyHpPercent = Math.max(0, Math.min(100, (enemyHp / enemyMaxHp) * 100));
+  // 敵のHP割合計算（通常時 vs ボス戦時）
+  const enemyHpPercent = Math.max(0, Math.min(100, (enemyHp / activeEnemyMaxHp) * 100));
   // プレイヤーのHP割合計算
   const playerHpPercent = Math.max(0, Math.min(100, (playerHp / playerMaxHp) * 100));
 
@@ -381,7 +548,7 @@ export default function App() {
         {/* --- [上部エリア 1] アプリタイトル補助 & ツールバー --- */}
         <div className="flex items-center justify-between pb-1 border-b border-zinc-900 text-xs">
           <div className="flex items-center gap-2 text-zinc-300 font-bold">
-            <img src="./icon.png" alt="ひらめきクエスト！" className="w-5 h-5 rounded-md shadow-sm border border-cyan-500/50 object-cover" />
+            <img src="./icon.png" alt="ひらめきクエスト！" className="w-5 h-5 rounded-full shadow-sm border border-yellow-400/60 object-cover" />
             <span className="tracking-wide">ひらめきクエスト！</span>
           </div>
 
@@ -411,31 +578,48 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- [画面上部 2] ステージ & スコア & ハイスコア（添付画像準拠） --- */}
+        {/* --- [画面上部 2] ステージ & スコア & ハイスコア（ボス戦時は大迫力ボス仕様） --- */}
         <div className="flex items-start justify-between mt-2 px-1">
           {/* 左：ステージ数 & カテゴリ & 敵の力 */}
           <div className="flex flex-col">
-            <div className="text-2xl font-black tracking-wider text-white">
-              ステージ：{stage}
-            </div>
-            {/* 問題の種類を「敵の力」の左横に配置（タップでモード変更可能） */}
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <button
-                onClick={() => setShowEquipModal(true)}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-black border flex items-center gap-1 active:scale-95 transition ${
-                  quizMode === 'auto_stage_math'
-                    ? 'bg-yellow-950/80 text-yellow-300 border-yellow-500/60 shadow-[0_0_8px_rgba(234,179,8,0.3)]'
-                    : 'bg-blue-950 text-blue-300 border-blue-500/50'
-                }`}
-                title="タップして出題モードを変更"
-              >
-                <span>{quizMode === 'auto_stage_math' ? '⚡️さんすう(自動)' : currentQuestion.categoryLabel}</span>
-                <span className="text-[9px] opacity-75">▼切替</span>
-              </button>
-              <span className="text-[11px] text-zinc-400 font-bold">
-                敵の力：{GAME_CONFIG.calculateEnemyAttack(stage)}
-              </span>
-            </div>
+            {isBossBattle ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xl sm:text-2xl font-black text-red-500 flex items-center gap-1 animate-pulse drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">
+                  🔥 BOSS BATTLE!
+                </span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-950 text-red-300 border border-red-500/80">
+                  STAGE {stage}
+                </span>
+              </div>
+            ) : (
+              <div className="text-2xl font-black tracking-wider text-white">
+                ステージ：{stage}
+              </div>
+            )}
+            {/* 問題の種類を「敵の力」の左横に配置（通常ステージ時のみ表示、ボス戦時は非表示） */}
+            {!isBossBattle && (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <button
+                  onClick={() => setShowEquipModal(true)}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-black border flex items-center gap-1 active:scale-95 transition ${
+                    quizMode === 'auto_stage_math'
+                      ? 'bg-yellow-950/80 text-yellow-300 border-yellow-500/60 shadow-[0_0_8px_rgba(234,179,8,0.3)]'
+                      : 'bg-blue-950 text-blue-300 border-blue-500/50'
+                  }`}
+                  title="タップして出題モードを変更"
+                >
+                  <span>
+                    {quizMode === 'auto_stage_math'
+                      ? '⚡️さんすう(自動)'
+                      : currentQuestion.categoryLabel}
+                  </span>
+                  <span className="text-[9px] opacity-75">▼切替</span>
+                </button>
+                <span className="text-[11px] font-bold text-zinc-400">
+                  敵の力：{activeEnemyAttack}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* 右：こんかい & さいこうスコア */}
@@ -475,12 +659,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- [画面中央 2] 敵キャラ枠・画像・HPバー（添付画像準拠） --- */}
+        {/* --- [画面中央 2] 敵キャラ枠・画像・HPバー（ボス戦時は専用の紅蓮オーラ） --- */}
         <div className="flex-1 flex flex-col items-center justify-center my-1 relative">
-          {/* 敵枠（白いシャープな四角枠） */}
-          <div className="relative w-48 h-48 sm:w-56 sm:h-56 bg-zinc-950/90 rounded-lg border-2 border-zinc-700 flex items-center justify-center p-2 shadow-2xl overflow-hidden">
-            {/* モンスターオンメモリSVGレンダラー */}
-            <MonsterRenderer type={currentEnemyDef.svgType} isHit={enemyHitAnim} />
+          {/* 敵枠（通常時は白系シャープ枠、ボス戦時は深紅の魔力オーラ枠） */}
+          <div
+            className={`relative w-48 h-48 sm:w-56 sm:h-56 bg-zinc-950/90 rounded-2xl border-2 flex items-center justify-center p-2 shadow-2xl overflow-visible transition-all duration-300 ${
+              isBossBattle
+                ? 'border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.7)] ring-2 ring-red-500/50'
+                : 'border-zinc-700'
+            }`}
+          >
+            {/* モンスターオンメモリSVGレンダラー（通常敵 or ボスキャラ） */}
+            <MonsterRenderer type={displayEnemyDef.svgType} isHit={enemyHitAnim} />
 
             {/* 敵被ダメージ数値ポップアップ */}
             {enemyDamageNum !== null && (
@@ -497,28 +687,62 @@ export default function App() {
                 <div className="w-3/4 h-2 bg-white rounded-full shadow-[0_0_15px_#60a5fa] anim-pop rotate-[-35deg]" />
               </div>
             )}
+
+            {/* 🪙 敵撃破時 コイン飛び散りアニメーション演出（通常敵: 数枚 / ボス: たくさん） */}
+            {coinBurstParticles.length > 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 overflow-visible">
+                {coinBurstParticles.map((coin) => (
+                  <div
+                    key={coin.id}
+                    className="absolute anim-coin-scatter select-none pointer-events-none"
+                    style={{
+                      '--target-x': `${coin.x}px`,
+                      '--target-y': `${coin.y}px`,
+                      '--target-rot': `${coin.rot}deg`,
+                      '--target-scale': coin.scale,
+                      animationDelay: `${coin.delay}ms`,
+                      fontSize: `${coin.size}px`,
+                    } as React.CSSProperties}
+                  >
+                    <span className="filter drop-shadow-[0_0_8px_rgba(250,204,21,0.95)] inline-block">
+                      🪙
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* 敵キャラの名前（バッジなし）と紹介テキスト */}
+          {/* 敵キャラの名前と紹介テキスト */}
           <div className="mt-2 text-center flex flex-col items-center">
-            <h3 className="text-lg font-black text-white tracking-wider">
-              {currentEnemyDef.name}
+            {isBossBattle && currentBossDef && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-950 border border-red-500/60 text-red-300 text-[10px] font-black uppercase tracking-wider mb-1">
+                <span>👑</span>
+                <span>{currentBossDef.bossTitle}</span>
+              </div>
+            )}
+            <h3 className={`text-lg font-black tracking-wider ${isBossBattle ? 'text-yellow-300 drop-shadow' : 'text-white'}`}>
+              {displayEnemyDef.name}
             </h3>
-            <p className="text-[11px] text-zinc-400 font-bold mt-0.5 max-w-[280px] text-center leading-snug">
-              {currentEnemyDef.flavor}
+            <p className="text-[11px] text-zinc-400 font-bold mt-0.5 max-w-[320px] sm:max-w-xs text-center leading-snug line-clamp-2">
+              {displayEnemyDef.flavor}
             </p>
           </div>
 
-          {/* 敵キャラのHPバー（添付画像通り：緑の残HP、赤の減HP） */}
+          {/* 敵キャラのHPバー（ボス戦時は赤〜ローズのグラデーションHP） */}
           <div className="w-48 sm:w-56 mt-1 flex flex-col items-center">
-            <div className="w-full h-4 bg-red-600 rounded-sm overflow-hidden border border-zinc-800 relative">
+            <div className="w-full h-4 bg-red-950 rounded-sm overflow-hidden border border-zinc-800 relative">
               <div
-                className="h-full bg-green-500 transition-all duration-300 ease-out"
+                className={`h-full transition-all duration-300 ease-out ${
+                  isBossBattle
+                    ? 'bg-gradient-to-r from-red-600 via-rose-500 to-yellow-400'
+                    : 'bg-green-500'
+                }`}
                 style={{ width: `${enemyHpPercent}%` }}
               />
             </div>
-            <div className="text-[11px] font-bold text-zinc-400 mt-0.5">
-              HP: {enemyHp} / {enemyMaxHp}
+            <div className={`text-[11px] font-bold mt-0.5 ${isBossBattle ? 'text-red-300 font-black' : 'text-zinc-400'}`}>
+              {isBossBattle ? '💀 BOSS HP: ' : 'HP: '}{enemyHp} / {activeEnemyMaxHp}
             </div>
           </div>
         </div>
@@ -577,7 +801,7 @@ export default function App() {
         {/* --- [画面下部 2] 自分のHPバー & 装備（武器・防具：添付画像準拠） --- */}
         <div className="w-full mt-2 pt-2 border-t border-zinc-900">
           {/* 中央：自分のHPバー（青の残HP、赤の減HP：添付画像準拠） */}
-          <div className="w-full flex flex-col items-center mb-2.5">
+          <div className="w-full flex flex-col items-center mb-1.5">
             <div className="w-48 sm:w-56 h-4 bg-red-600 rounded-sm overflow-hidden border border-zinc-800 relative">
               <div
                 className="h-full bg-blue-500 transition-all duration-300 ease-out"
@@ -586,6 +810,26 @@ export default function App() {
             </div>
             <div className="text-[11px] font-bold text-zinc-400 mt-0.5">
               じぶんの HP: {playerHp} / {playerMaxHp}
+            </div>
+
+            {/* 🪙 所持金（おかね）表示（自分のHPの真下） */}
+            <div
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-0.5 rounded-full border transition-all duration-300 mt-1 select-none ${
+                coinBurstParticles.length > 0
+                  ? 'bg-amber-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.9)] scale-105 ring-2 ring-yellow-300'
+                  : 'bg-zinc-900/90 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+              }`}
+            >
+              <span className="text-sm">🪙</span>
+              <span className={`text-[11px] font-bold ${coinBurstParticles.length > 0 ? 'text-black' : 'text-zinc-300'}`}>
+                おかね：
+              </span>
+              <span className={`text-xs font-black tracking-wider ${coinBurstParticles.length > 0 ? 'text-black' : 'text-yellow-300'}`}>
+                {money.toLocaleString()}
+              </span>
+              <span className={`text-[11px] font-bold ${coinBurstParticles.length > 0 ? 'text-black' : 'text-zinc-300'}`}>
+                円
+              </span>
             </div>
           </div>
 
@@ -653,6 +897,14 @@ export default function App() {
             <p className="text-base text-zinc-300 font-bold mt-3">
               モンスターを たおしたぞ！ つぎのステージへ すすもう！
             </p>
+
+            {/* 🪙 おかね獲得演出 */}
+            {lastEarnedStageMoney > 0 && (
+              <div className="mt-4 px-4 py-2 bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border-2 border-yellow-400/80 rounded-2xl flex items-center gap-2 text-yellow-300 font-black text-lg shadow-[0_0_20px_rgba(250,204,21,0.4)] anim-pop">
+                <span className="text-2xl animate-bounce">🪙</span>
+                <span>+{lastEarnedStageMoney.toLocaleString()} 円 ゲット！</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -688,6 +940,13 @@ export default function App() {
               <div className="flex justify-between items-center text-xs font-bold text-zinc-400 pt-1 border-t border-zinc-800">
                 <span>さいこうスコア：</span>
                 <span className="text-zinc-200 font-bold">{highScore.toLocaleString()} てん</span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-bold text-amber-300 pt-1 border-t border-zinc-800">
+                <span className="flex items-center gap-1">
+                  <span>🪙</span>
+                  <span>あつめた おかね：</span>
+                </span>
+                <span className="text-yellow-300 font-black text-sm">{money.toLocaleString()} 円</span>
               </div>
             </div>
 
@@ -958,6 +1217,136 @@ export default function App() {
               className="mt-5 w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl"
             >
               けってい
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          👑 1. スマブラ風 ボス出現カットイン演出（WARNING!! 緊急警報 ＆ キャラ紹介）
+         ==================================================================== */}
+      {showBossCutIn && currentBossDef && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md overflow-hidden animate-in fade-in duration-300">
+          {/* 赤と黒のダイナミック警戒ラインストライプ背景 */}
+          <div className="absolute inset-0 opacity-20 pointer-events-none bg-[repeating-linear-gradient(45deg,#000,#000_20px,#ef4444_20px,#ef4444_40px)]" />
+
+          {/* 上下を走るWARNINGバナー */}
+          <div className="absolute top-4 sm:top-6 left-0 right-0 py-1.5 bg-red-600 text-white font-black tracking-widest text-center text-[10px] sm:text-xs uppercase flex items-center justify-center gap-3 shadow-lg animate-pulse z-10">
+            <span>⚠️ WARNING!!</span>
+            <span>EMERGENCY BOSS APPROACHING!!</span>
+            <span>WARNING!! ⚠️</span>
+          </div>
+
+          <div className="absolute bottom-4 sm:bottom-6 left-0 right-0 py-1.5 bg-red-600 text-white font-black tracking-widest text-center text-[10px] sm:text-xs uppercase flex items-center justify-center gap-3 shadow-lg animate-pulse z-10">
+            <span>⚠️ WARNING!!</span>
+            <span>EMERGENCY BOSS APPROACHING!!</span>
+            <span>WARNING!! ⚠️</span>
+          </div>
+
+          {/* スマブラ風 巨大スラッシュ背景カードプレート */}
+          <div className="relative w-full max-w-sm mx-4 bg-gradient-to-b from-red-950 via-zinc-900 to-black border-4 border-red-500 shadow-[0_0_60px_rgba(239,68,68,0.8)] p-5 rounded-3xl flex flex-col items-center text-center transform hover:scale-[1.01] transition-transform">
+            {/* 上部バッジ（子供でも読めるようにふりがな付きでシンプル化） */}
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-red-600 text-white text-xs sm:text-sm font-black rounded-full uppercase tracking-wider mb-2 shadow-lg animate-bounce">
+              <span>⚔️</span>
+              <span>ボス降臨（こうりん）</span>
+              <span>⚔️</span>
+            </div>
+
+            {/* ボス肩書き（称号：ふりがな付き） */}
+            <p className="text-sm font-extrabold text-red-300 tracking-wider">
+              ー {currentBossDef.bossTitle} ー
+            </p>
+
+            {/* ボス名（特大インパクト文字） */}
+            <h2 className="text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-red-400 to-yellow-200 tracking-wide mt-0.5 mb-2 drop-shadow-[0_2px_10px_rgba(239,68,68,0.8)]">
+              {currentBossDef.name}
+            </h2>
+
+            {/* ボスSVGプレビュー */}
+            <div className="w-44 h-44 sm:w-52 sm:h-52 my-1 relative flex items-center justify-center rounded-2xl bg-black/70 border-2 border-red-500/80 p-2 shadow-2xl">
+              <div className="absolute inset-0 bg-red-600/15 rounded-2xl animate-pulse" />
+              <MonsterRenderer type={currentBossDef.svgType} isHit={false} />
+            </div>
+
+            {/* 決め台詞（ふりがな付き） */}
+            <p className="text-xs sm:text-sm font-extrabold text-amber-200/95 italic my-2 px-2 leading-snug line-clamp-2">
+              {currentBossDef.introQuote}
+            </p>
+
+            {/* 出陣ボタン（2行に改行＆ふりがな付き） */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setShowBossCutIn(false);
+              }}
+              className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 hover:from-red-500 hover:to-orange-400 active:scale-95 text-white font-black rounded-2xl shadow-[0_4px_0_#7f1d1d] border-2 border-yellow-300 tracking-wider transition-all flex flex-col items-center justify-center gap-0.5"
+            >
+              <span className="text-lg sm:text-xl text-yellow-200 drop-shadow">
+                いざ決戦（けっせん）へ
+              </span>
+              <span className="text-xs sm:text-sm text-white/95 font-bold">
+                タップでバトル開始（かいし）
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          👑 2. 超豪華 ボス撃破大勝利モーダル（豪華ファンファーレ ＆ 特大報酬）
+         ==================================================================== */}
+      {showBossVictory && currentBossDef && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-sm bg-gradient-to-b from-amber-950 via-zinc-900 to-black border-4 border-yellow-400 shadow-[0_0_60px_rgba(250,204,21,0.6)] rounded-3xl p-6 text-center flex flex-col items-center">
+            {/* 黄金の王冠アイコン */}
+            <div className="text-6xl mb-1 animate-bounce">👑</div>
+
+            <div className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-amber-600 text-black font-black text-xs rounded-full uppercase tracking-wider mb-2 shadow">
+              GRAND VICTORY!
+            </div>
+
+            <h2 className="text-3xl font-black text-yellow-300 tracking-wider drop-shadow-md">
+              ボスをたおした！！
+            </h2>
+
+            <p className="text-sm sm:text-base font-extrabold text-zinc-200 mt-2 leading-relaxed">
+              <span>{currentBossDef.name}を</span><br />
+              <span className="text-yellow-300 font-black">みごと とうばつ！</span>
+            </p>
+
+            {/* 豪華報酬ボックス */}
+            <div className="w-full bg-black/70 border border-yellow-500/40 rounded-2xl p-3.5 my-3.5 flex flex-col gap-2.5 text-left shadow-inner">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-yellow-400 font-bold flex items-center gap-1.5">
+                  <span>💎</span> ボーナス
+                </span>
+                <span className="text-yellow-300 font-black text-base">+2,000 てん！</span>
+              </div>
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                  <span>🪙</span> おかね
+                </span>
+                <span className="text-amber-300 font-black text-sm sm:text-base">+{lastEarnedBossMoney.toLocaleString()} 円！</span>
+              </div>
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-emerald-400 font-bold flex items-center gap-1.5">
+                  <span>💖</span> お祝い（おいわい）
+                </span>
+                <span className="text-emerald-300 font-black text-sm">HPぜんかいふく！</span>
+              </div>
+              <div className="flex items-center justify-between text-xs sm:text-sm border-t border-zinc-800 pt-2">
+                <span className="text-sky-400 font-bold flex items-center gap-1.5">
+                  <span>🚩</span> つぎのステージ
+                </span>
+                <span className="text-sky-300 font-black text-sm">ステージ {bossStageOrigin + 1}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleProceedFromBossVictory}
+              className="w-full py-3.5 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-amber-300 active:scale-95 text-zinc-950 font-black text-lg rounded-2xl shadow-[0_4px_0_#b45309] border border-white tracking-wide transition-all"
+            >
+              つぎにすすむ！ ▶
             </button>
           </div>
         </div>
