@@ -8,6 +8,7 @@ import {
   Volume2,
   VolumeX,
   RotateCcw,
+  RotateCw,
   Sparkles,
   Trophy,
   Shield,
@@ -15,7 +16,8 @@ import {
   ChevronRight,
   HelpCircle,
   Settings,
-  Lock
+  Lock,
+  Check
 } from 'lucide-react';
 import {
   GAME_CONFIG,
@@ -36,6 +38,7 @@ import {
 import { sound } from './audio.ts';
 import { MonsterRenderer } from './components/MonsterRenderer.tsx';
 import { WeaponIcon, ArmorIcon } from './components/ItemIcons.tsx';
+import { CounterGauge } from './components/CounterGauge.tsx';
 import { PWAInstallButton } from './components/PWAInstallButton.tsx';
 
 /**
@@ -101,11 +104,52 @@ export default function App() {
   const [highScore, setHighScore] = useState<number>(0);
   const [isNewRecord, setIsNewRecord] = useState<boolean>(false);
 
-  // プレイヤー装備とステータス
+  // プレイヤー保有アイテム（初期状態は武器・防具ともに「なし」のみ所持）
+  const [ownedWeaponIds, setOwnedWeaponIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('hirameki_owned_weapons');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return ['none'];
+  });
+
+  const [ownedArmorIds, setOwnedArmorIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('hirameki_owned_armors');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return ['none'];
+  });
+
+  // プレイヤー装備とステータス（初期状態は「なし」）
   const [playerHp, setPlayerHp] = useState<number>(GAME_CONFIG.playerInitialHp);
   const [playerMaxHp] = useState<number>(GAME_CONFIG.playerInitialHp);
-  const [equippedWeapon, setEquippedWeapon] = useState<WeaponItem>(WEAPON_LIST[0]); // 初期「なし」
-  const [equippedArmor, setEquippedArmor] = useState<ArmorItem>(ARMOR_LIST[0]);     // 初期「なし」
+  const [equippedWeapon, setEquippedWeapon] = useState<WeaponItem>(() => {
+    try {
+      const savedId = localStorage.getItem('hirameki_equipped_weapon_id');
+      if (savedId) {
+        const found = WEAPON_LIST.find((w) => w.id === savedId);
+        if (found) return found;
+      }
+    } catch {}
+    return WEAPON_LIST[0]; // 初期「なし」
+  });
+  const [equippedArmor, setEquippedArmor] = useState<ArmorItem>(() => {
+    try {
+      const savedId = localStorage.getItem('hirameki_equipped_armor_id');
+      if (savedId) {
+        const found = ARMOR_LIST.find((a) => a.id === savedId);
+        if (found) return found;
+      }
+    } catch {}
+    return ARMOR_LIST[0]; // 初期「なし」
+  });
 
   // 🪙 所持金（おかね）ステート（localStorageで永続化）
   const [money, setMoney] = useState<number>(() => {
@@ -176,6 +220,10 @@ export default function App() {
   const [playerDamageNum, setPlayerDamageNum] = useState<number | null>(null);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
 
+  // 👾 敵の「はんげき」ゲージステート（0〜10：1秒ごとに増加、10で敵から攻撃）
+  const [counterGauge, setCounterGauge] = useState<number>(0);
+  const [isCounterattackCause, setIsCounterattackCause] = useState<boolean>(false);
+
   // ステージクリア / ゲームオーバーモーダル
   const [isStageClearing, setIsStageClearing] = useState<boolean>(false);
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
@@ -183,11 +231,106 @@ export default function App() {
   // サウンドミュートステート
   const [isMuted, setIsMuted] = useState<boolean>(() => sound.getMuted());
 
-  // 装備プレビューモーダル（将来機能の手動テスト用）
+  // そうびモーダル（武器 or 防具）
   const [showEquipModal, setShowEquipModal] = useState<boolean>(false);
+  const [equipModalType, setEquipModalType] = useState<'weapon' | 'armor'>('weapon');
+
+  // 設定モーダル（ゲーム設定・モード切替・ボス召喚）
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+
+  // おみせ画面モーダル
+  const [showShop, setShowShop] = useState<boolean>(false);
+  // おみせ購入確認ウィンドウ選択中アイテム
+  interface ShopItemSelection {
+    id: string;
+    name: string;
+    bonus: number;
+    iconType: 'none' | 'wooden_sword' | 'iron_sword' | 'diamond_sword' | 'leather_armor' | 'iron_armor' | 'diamond_armor';
+    price: number;
+    type: 'weapon' | 'armor';
+  }
+  const [selectedShopItem, setSelectedShopItem] = useState<ShopItemSelection | null>(null);
+  // 「おかねがたりません」アラート（0.5秒間表示）
+  const [showNotEnoughMoney, setShowNotEnoughMoney] = useState<boolean>(false);
 
   // カテゴリフィルター（算数、ことば、なぞなぞ、ぜんぶ）
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // 装備変更ハンドラー
+  const handleEquipWeapon = (weapon: WeaponItem) => {
+    sound.playEquip();
+    setEquippedWeapon(weapon);
+    try {
+      localStorage.setItem('hirameki_equipped_weapon_id', weapon.id);
+    } catch {}
+  };
+
+  const handleEquipArmor = (armor: ArmorItem) => {
+    sound.playEquip();
+    setEquippedArmor(armor);
+    try {
+      localStorage.setItem('hirameki_equipped_armor_id', armor.id);
+    } catch {}
+  };
+
+  // お店購入処理 (isEquip: 買って装備するかどうか)
+  const handleBuyItem = (isEquip: boolean) => {
+    if (!selectedShopItem) return;
+
+    if (money < selectedShopItem.price) {
+      sound.playWrong();
+      setShowNotEnoughMoney(true);
+      setTimeout(() => {
+        setShowNotEnoughMoney(false);
+        setSelectedShopItem(null);
+      }, 500);
+      return;
+    }
+
+    const newMoney = money - selectedShopItem.price;
+    setMoney(newMoney);
+    try {
+      localStorage.setItem('hirameki_money', newMoney.toString());
+    } catch {}
+
+    if (selectedShopItem.type === 'weapon') {
+      const updated = Array.from(new Set([...ownedWeaponIds, selectedShopItem.id]));
+      setOwnedWeaponIds(updated);
+      try {
+        localStorage.setItem('hirameki_owned_weapons', JSON.stringify(updated));
+      } catch {}
+      if (isEquip) {
+        const item = WEAPON_LIST.find((w) => w.id === selectedShopItem.id);
+        if (item) {
+          setEquippedWeapon(item);
+          try {
+            localStorage.setItem('hirameki_equipped_weapon_id', item.id);
+          } catch {}
+        }
+      }
+    } else {
+      const updated = Array.from(new Set([...ownedArmorIds, selectedShopItem.id]));
+      setOwnedArmorIds(updated);
+      try {
+        localStorage.setItem('hirameki_owned_armors', JSON.stringify(updated));
+      } catch {}
+      if (isEquip) {
+        const item = ARMOR_LIST.find((a) => a.id === selectedShopItem.id);
+        if (item) {
+          setEquippedArmor(item);
+          try {
+            localStorage.setItem('hirameki_equipped_armor_id', item.id);
+          } catch {}
+        }
+      }
+    }
+
+    sound.playBuy();
+    if (isEquip) {
+      sound.playEquip();
+    }
+    setSelectedShopItem(null);
+  };
 
   // --- 2. ハイスコア永続化（localStorage復元） ---
   useEffect(() => {
@@ -251,6 +394,8 @@ export default function App() {
   const handleAnswerClick = (choiceIndex: number) => {
     if (isProcessing || isGameOver || isStageClearing || showBossCutIn || showBossVictory) return;
 
+    setCounterGauge(0);
+    setIsCounterattackCause(false);
     setIsProcessing(true);
     const isCorrect = choiceIndex === currentQuestion.answerIndex;
     // 出題の難易度ステージ（ボス戦時は stage + 1）
@@ -261,9 +406,9 @@ export default function App() {
       sound.playCorrect();
       setAnswerState('correct');
 
-      // 今回の攻撃値 = 基礎攻撃力(1) + 武器値
+      // 正解時ポイント（要望: 一律100点加算）
       const attackPower = GAME_CONFIG.playerBaseAttack + equippedWeapon.attackBonus;
-      const scoreGain = attackPower * GAME_CONFIG.scoreMultiplierPerAttack;
+      const scoreGain = GAME_CONFIG.scorePerCorrectAnswer; // 一律100点
 
       // 敵ダメージアニメーション
       setTimeout(() => {
@@ -387,6 +532,7 @@ export default function App() {
       setTimeout(() => {
         setAnswerState('idle');
         setIsProcessing(false);
+        setCounterGauge(0);
         if (quizMode === 'auto_stage_math') {
           setDynamicQuestion(generateStageMathQuestion(targetQuestionStage));
         } else {
@@ -396,10 +542,107 @@ export default function App() {
     }
   };
 
+  // --- 👾 敵の「はんげき」発動処理（10秒経過して回答がなかった場合：不正解時と同一の挙動） ---
+  const handleEnemyCounterattack = () => {
+    if (
+      isProcessing ||
+      answerState !== 'idle' ||
+      isGameOver ||
+      isStageClearing ||
+      showBossCutIn ||
+      showBossVictory ||
+      showShop ||
+      showEquipModal ||
+      showSettingsModal
+    ) {
+      return;
+    }
+
+    sound.playWrong();
+    setAnswerState('wrong');
+    setIsCounterattackCause(true);
+    setIsProcessing(true);
+
+    const targetQuestionStage = isBossBattle ? stage + 1 : stage;
+    const incomingDamage = Math.max(1, activeEnemyAttack - equippedArmor.defenseBonus);
+
+    // プレイヤーダメージアニメーション
+    setTimeout(() => {
+      sound.playHurt();
+      setPlayerHitAnim(true);
+      setPlayerDamageNum(incomingDamage);
+
+      setPlayerHp((prev) => {
+        const nextHp = Math.max(0, prev - incomingDamage);
+        if (nextHp <= 0) {
+          setTimeout(() => {
+            handleGameOver();
+          }, 600);
+        }
+        return nextHp;
+      });
+
+      setTimeout(() => {
+        setPlayerHitAnim(false);
+        setPlayerDamageNum(null);
+      }, 600);
+    }, 350);
+
+    // 1秒間のタメ演出後に次の問題へ（反撃ゲージは0に戻る）
+    setTimeout(() => {
+      setAnswerState('idle');
+      setIsCounterattackCause(false);
+      setIsProcessing(false);
+      setCounterGauge(0);
+      if (quizMode === 'auto_stage_math') {
+        setDynamicQuestion(generateStageMathQuestion(targetQuestionStage));
+      } else {
+        setQuestionIndex((prev) => prev + 1);
+      }
+    }, 1000);
+  };
+
+  // 👾 敵の「はんげき」ゲージタイマー（1秒ごとに1ゲージ増加、10個目で敵が攻撃）
+  const isQuestionActive =
+    answerState === 'idle' &&
+    !isProcessing &&
+    !isStageClearing &&
+    !isGameOver &&
+    !showBossCutIn &&
+    !showBossVictory &&
+    !showShop &&
+    !showEquipModal &&
+    !showSettingsModal;
+
+  useEffect(() => {
+    if (!isQuestionActive) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      setCounterGauge((prev) => {
+        if (prev >= 9) {
+          return 10;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [isQuestionActive, currentQuestion.id]);
+
+  useEffect(() => {
+    if (counterGauge >= 10 && isQuestionActive) {
+      handleEnemyCounterattack();
+    }
+  }, [counterGauge, isQuestionActive]);
+
   // --- 👑 ボス出現イベント（3ステージクリア毎に発動） ---
-  const handleTriggerBoss = () => {
-    // 3種類の強力なボスの中からランダムで1体選定
-    const boss = getRandomBoss(currentBossDef?.id);
+  const handleTriggerBoss = (specificBossId?: string) => {
+    // 4種類の強力なボスの中から選定（指定があればそのボス、通常はランダム）
+    const boss = specificBossId
+      ? BOSS_LIST.find((b) => b.id === specificBossId) || getRandomBoss(currentBossDef?.id)
+      : getRandomBoss(currentBossDef?.id);
     const stageEnemyHp = GAME_CONFIG.calculateEnemyHp(stage);
     const stageEnemyAtk = GAME_CONFIG.calculateEnemyAttack(stage);
 
@@ -439,6 +682,7 @@ export default function App() {
     setShowBossVictory(true);
     setAnswerState('idle');
     setIsProcessing(false);
+    setCounterGauge(0);
   };
 
   // --- 👑 ボス撃破後に次のステージへ進む ---
@@ -490,6 +734,7 @@ export default function App() {
       setIsStageClearing(false);
       setAnswerState('idle');
       setIsProcessing(false);
+      setCounterGauge(0);
     }, 1800);
   };
 
@@ -521,7 +766,9 @@ export default function App() {
     setIsStageClearing(false);
     setCoinBurstParticles([]);
     setAnswerState('idle');
+    setIsCounterattackCause(false);
     setIsProcessing(false);
+    setCounterGauge(0);
   };
 
   // 敵のHP割合計算（通常時 vs ボス戦時）
@@ -543,13 +790,14 @@ export default function App() {
       {/* ====================================================================
           メインコンテナ（スマホ縦画面に最適化された中央寄せカラム）
          ==================================================================== */}
-      <div className="w-full max-w-md mx-auto flex flex-col justify-between h-full min-h-screen px-4 pt-3 pb-5 safe-top safe-bottom">
+      <div className="w-full max-w-md mx-auto flex flex-col justify-between min-h-screen px-4 pt-2.5 pb-5 safe-top safe-bottom">
 
         {/* --- [上部エリア 1] アプリタイトル補助 & ツールバー --- */}
-        <div className="flex items-center justify-between pb-1 border-b border-zinc-900 text-xs">
+        <div className="flex items-center justify-between pb-1 border-b border-zinc-900 text-xs shrink-0">
           <div className="flex items-center gap-2 text-zinc-300 font-bold">
             <img src="./icon.png" alt="ひらめきクエスト！" className="w-5 h-5 rounded-full shadow-sm border border-yellow-400/60 object-cover" />
             <span className="tracking-wide">ひらめきクエスト！</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">v3.0</span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -568,9 +816,9 @@ export default function App() {
 
             {/* 設定 ＆ モード切替ボタン（ギアアイコン） */}
             <button
-              onClick={() => setShowEquipModal(true)}
+              onClick={() => setShowSettingsModal(true)}
               className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-700 text-yellow-300 hover:bg-zinc-800 hover:text-white active:scale-95 transition text-xs font-bold shadow-sm"
-              title="出題モードや装備を設定する"
+              title="出題モードやゲーム設定"
             >
               <Settings className="w-3.5 h-3.5 text-yellow-400 animate-spin-slow" />
               <span>設定</span>
@@ -600,7 +848,7 @@ export default function App() {
             {!isBossBattle && (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <button
-                  onClick={() => setShowEquipModal(true)}
+                  onClick={() => setShowSettingsModal(true)}
                   className={`px-1.5 py-0.5 rounded text-[10px] font-black border flex items-center gap-1 active:scale-95 transition ${
                     quizMode === 'auto_stage_math'
                       ? 'bg-yellow-950/80 text-yellow-300 border-yellow-500/60 shadow-[0_0_8px_rgba(234,179,8,0.3)]'
@@ -639,8 +887,8 @@ export default function App() {
         </div>
 
         {/* --- [画面中央 1] 問題テキスト表示枠（白背景の明快なカード：文字数に応じて最大文字サイズを自動適用） --- */}
-        <div className="mt-2.5 mb-2 w-full">
-          <div className="bg-white text-black rounded-2xl px-4 py-3 shadow-xl border-4 border-zinc-200 text-center relative flex flex-col items-center justify-center min-h-[92px] max-h-[120px] overflow-hidden">
+        <div className="mt-2 mb-1.5 w-full">
+          <div className="bg-white text-black rounded-2xl px-4 py-2.5 shadow-xl border-4 border-zinc-200 text-center relative flex flex-col items-center justify-center min-h-[82px] max-h-[110px] overflow-hidden">
             {/* 問題文（UI枠を崩さず最大の文字サイズで表示） */}
             <h2
               className={`w-full text-center text-zinc-950 break-words line-clamp-2 ${getQuestionFontSize(
@@ -659,58 +907,66 @@ export default function App() {
           </div>
         </div>
 
-        {/* --- [画面中央 2] 敵キャラ枠・画像・HPバー（ボス戦時は専用の紅蓮オーラ） --- */}
-        <div className="flex-1 flex flex-col items-center justify-center my-1 relative">
-          {/* 敵枠（通常時は白系シャープ枠、ボス戦時は深紅の魔力オーラ枠） */}
-          <div
-            className={`relative w-48 h-48 sm:w-56 sm:h-56 bg-zinc-950/90 rounded-2xl border-2 flex items-center justify-center p-2 shadow-2xl overflow-visible transition-all duration-300 ${
-              isBossBattle
-                ? 'border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.7)] ring-2 ring-red-500/50'
-                : 'border-zinc-700'
-            }`}
-          >
-            {/* モンスターオンメモリSVGレンダラー（通常敵 or ボスキャラ） */}
-            <MonsterRenderer type={displayEnemyDef.svgType} isHit={enemyHitAnim} />
+        {/* --- [画面中央 2] 敵キャラ枠・画像・HPバー（ボス戦時は専用の紅蓮オーラ） ＆ 👾はんげきゲージ --- */}
+        <div className="flex-1 flex flex-col items-center justify-center my-0.5 relative min-h-[140px]">
+          {/* 敵枠と反撃ゲージの水平エリア */}
+          <div className="relative flex items-center justify-center w-full">
+            {/* 敵枠（通常時は白系シャープ枠、ボス戦時は深紅の魔力オーラ枠） */}
+            <div
+              className={`relative w-36 h-36 sm:w-44 sm:h-44 md:w-52 md:h-52 max-h-[25vh] max-w-[25vh] bg-zinc-950/90 rounded-2xl border-2 flex items-center justify-center p-2 shadow-2xl overflow-visible transition-all duration-300 ${
+                isBossBattle
+                  ? 'border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.7)] ring-2 ring-red-500/50'
+                  : 'border-zinc-700'
+              }`}
+            >
+              {/* モンスターオンメモリSVGレンダラー（通常敵 or ボスキャラ） */}
+              <MonsterRenderer type={displayEnemyDef.svgType} isHit={enemyHitAnim} />
 
-            {/* 敵被ダメージ数値ポップアップ */}
-            {enemyDamageNum !== null && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                <span className="text-4xl sm:text-5xl font-black text-red-500 drop-shadow-[0_2px_8px_rgba(255,255,255,0.9)] anim-damage-num">
-                  -{enemyDamageNum}
-                </span>
-              </div>
-            )}
+              {/* 敵被ダメージ数値ポップアップ */}
+              {enemyDamageNum !== null && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                  <span className="text-4xl sm:text-5xl font-black text-red-500 drop-shadow-[0_2px_8px_rgba(255,255,255,0.9)] anim-damage-num">
+                    -{enemyDamageNum}
+                  </span>
+                </div>
+              )}
 
-            {/* スラッシュ斬撃エフェクト */}
-            {enemyHitAnim && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                <div className="w-3/4 h-2 bg-white rounded-full shadow-[0_0_15px_#60a5fa] anim-pop rotate-[-35deg]" />
-              </div>
-            )}
+              {/* スラッシュ斬撃エフェクト */}
+              {enemyHitAnim && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                  <div className="w-3/4 h-2 bg-white rounded-full shadow-[0_0_15px_#60a5fa] anim-pop rotate-[-35deg]" />
+                </div>
+              )}
 
-            {/* 🪙 敵撃破時 コイン飛び散りアニメーション演出（通常敵: 数枚 / ボス: たくさん） */}
-            {coinBurstParticles.length > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 overflow-visible">
-                {coinBurstParticles.map((coin) => (
-                  <div
-                    key={coin.id}
-                    className="absolute anim-coin-scatter select-none pointer-events-none"
-                    style={{
-                      '--target-x': `${coin.x}px`,
-                      '--target-y': `${coin.y}px`,
-                      '--target-rot': `${coin.rot}deg`,
-                      '--target-scale': coin.scale,
-                      animationDelay: `${coin.delay}ms`,
-                      fontSize: `${coin.size}px`,
-                    } as React.CSSProperties}
-                  >
-                    <span className="filter drop-shadow-[0_0_8px_rgba(250,204,21,0.95)] inline-block">
-                      🪙
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+              {/* 🪙 敵撃破時 コイン飛び散りアニメーション演出（通常敵: 数枚 / ボス: たくさん） */}
+              {coinBurstParticles.length > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 overflow-visible">
+                  {coinBurstParticles.map((coin) => (
+                    <div
+                      key={coin.id}
+                      className="absolute anim-coin-scatter select-none pointer-events-none"
+                      style={{
+                        '--target-x': `${coin.x}px`,
+                        '--target-y': `${coin.y}px`,
+                        '--target-rot': `${coin.rot}deg`,
+                        '--target-scale': coin.scale,
+                        animationDelay: `${coin.delay}ms`,
+                        fontSize: `${coin.size}px`,
+                      } as React.CSSProperties}
+                    >
+                      <span className="filter drop-shadow-[0_0_8px_rgba(250,204,21,0.95)] inline-block">
+                        🪙
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 👾 敵の「はんげき」ゲージ（敵キャラの右横に配置：1秒ごとに下から上昇、10カウントで反撃発動） */}
+            <div className="absolute right-1 sm:right-3 md:right-5 top-1/2 -translate-y-1/2 z-10">
+              <CounterGauge currentCount={counterGauge} />
+            </div>
           </div>
 
           {/* 敵キャラの名前と紹介テキスト */}
@@ -757,64 +1013,68 @@ export default function App() {
                   正解！
                 </span>
                 <span className="text-sm font-bold text-zinc-300 mt-2">
-                  +{ (GAME_CONFIG.playerBaseAttack + equippedWeapon.attackBonus) * GAME_CONFIG.scoreMultiplierPerAttack } てん！
+                  +{GAME_CONFIG.scorePerCorrectAnswer} てん！
                 </span>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center px-8 py-6 rounded-3xl bg-zinc-900/95 border-4 border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.6)] anim-shake">
-                <span className="text-6xl mb-1">❌</span>
+                <span className="text-6xl mb-1">{isCounterattackCause ? '👾' : '❌'}</span>
                 <span className="text-4xl font-black text-red-500 tracking-widest drop-shadow-md">
-                  不正解！
+                  {isCounterattackCause ? 'はんげき！' : '不正解！'}
                 </span>
                 <span className="text-sm font-bold text-zinc-300 mt-2">
-                  いたたた！ ダメージをうけた！
+                  {isCounterattackCause ? 'てきのはんげき！ ダメージをうけた！' : 'いたたた！ ダメージをうけた！'}
                 </span>
               </div>
             )}
           </div>
         )}
 
-        {/* --- [画面下部 1] 選択肢ボタン（3つ：固定ボタンサイズ維持＆文字列に応じた最大フォントサイズ） --- */}
-        <div className="w-full grid grid-cols-3 gap-2.5 sm:gap-3 my-2">
-          {currentQuestion.choices.map((choiceText, idx) => (
-            <button
-              key={`${currentQuestion.id}-${idx}`}
-              onClick={() => handleAnswerClick(idx)}
-              disabled={isProcessing || isGameOver || isStageClearing}
-              className={`h-20 sm:h-24 min-h-[5rem] max-h-[6rem] rounded-2xl flex items-center justify-center px-1.5 sm:px-2 shadow-[0_4px_0_#1d4ed8] border-2 border-sky-400/40 select-none overflow-hidden transition-all ${
-                isProcessing
-                  ? 'opacity-70 cursor-not-allowed bg-blue-700 shadow-none'
-                  : 'bg-blue-600 hover:bg-blue-500 active:translate-y-1 active:shadow-none active:bg-blue-700'
-              }`}
-            >
-              <span
-                className={`w-full text-center text-white drop-shadow break-words line-clamp-2 ${getChoiceFontSize(
-                  choiceText
-                )}`}
+        {/* --- [画面下部] 選択肢ボタン ＆ 自分のHPバー・おかね・装備エリア --- */}
+        <div className="w-full shrink-0 mt-auto pt-1 flex flex-col">
+          {/* 1. 選択肢ボタン（3つ：固定ボタンサイズ維持＆文字列に応じた最大フォントサイズ） */}
+          <div className="w-full grid grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
+            {currentQuestion.choices.map((choiceText, idx) => (
+              <button
+                key={`${currentQuestion.id}-${idx}`}
+                onClick={() => handleAnswerClick(idx)}
+                disabled={isProcessing || isGameOver || isStageClearing}
+                className={`h-20 sm:h-24 min-h-[5rem] max-h-[6rem] rounded-2xl flex items-center justify-center px-1.5 sm:px-2 shadow-[0_4px_0_#1d4ed8] border-2 border-sky-400/40 select-none overflow-hidden transition-all ${
+                  isProcessing
+                    ? 'opacity-70 cursor-not-allowed bg-blue-700 shadow-none'
+                    : 'bg-blue-600 hover:bg-blue-500 active:translate-y-1 active:shadow-none active:bg-blue-700'
+                }`}
               >
-                {choiceText}
-              </span>
-            </button>
-          ))}
-        </div>
+                <span
+                  className={`w-full text-center text-white drop-shadow break-words line-clamp-2 ${getChoiceFontSize(
+                    choiceText
+                  )}`}
+                >
+                  {choiceText}
+                </span>
+              </button>
+            ))}
+          </div>
 
-        {/* --- [画面下部 2] 自分のHPバー & 装備（武器・防具：添付画像準拠） --- */}
-        <div className="w-full mt-2 pt-2 border-t border-zinc-900">
-          {/* 中央：自分のHPバー（青の残HP、赤の減HP：添付画像準拠） */}
-          <div className="w-full flex flex-col items-center mb-1.5">
-            <div className="w-48 sm:w-56 h-4 bg-red-600 rounded-sm overflow-hidden border border-zinc-800 relative">
+          {/* ★★★ 回答ボタンとHPバーの間の明確なクリアランス（文字列1行分＝約36px〜40pxのゆとり余白を絶対に縮まず確保） ★★★ */}
+          <div className="w-full h-9 sm:h-10 shrink-0 select-none pointer-events-none" aria-hidden="true" />
+
+          {/* 2. 自分のHPバー & 🪙おかね（回答ボタンから文字列1行分下方にシフト、おかねも同量下方にシフト） */}
+          <div className="w-full flex flex-col items-center">
+            {/* 自分のHPバー（青の残HP、赤の減HP） */}
+            <div className="w-48 sm:w-56 h-4 bg-red-600 rounded-sm overflow-hidden border border-zinc-800 relative shadow-sm">
               <div
                 className="h-full bg-blue-500 transition-all duration-300 ease-out"
                 style={{ width: `${playerHpPercent}%` }}
               />
             </div>
-            <div className="text-[11px] font-bold text-zinc-400 mt-0.5">
+            <div className="text-[11px] font-bold text-zinc-400 mt-1">
               じぶんの HP: {playerHp} / {playerMaxHp}
             </div>
 
-            {/* 🪙 所持金（おかね）表示（自分のHPの真下） */}
+            {/* 🪙 所持金（おかね）表示（HPバーと同量下方にシフト：文字列1行分相当のmt-7〜mt-8） */}
             <div
-              className={`inline-flex items-center justify-center gap-1.5 px-3 py-0.5 rounded-full border transition-all duration-300 mt-1 select-none ${
+              className={`inline-flex items-center justify-center gap-1.5 px-3.5 py-1 rounded-full border transition-all duration-300 mt-7 sm:mt-8 select-none ${
                 coinBurstParticles.length > 0
                   ? 'bg-amber-400 text-black border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.9)] scale-105 ring-2 ring-yellow-300'
                   : 'bg-zinc-900/90 text-amber-300 border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
@@ -833,23 +1093,31 @@ export default function App() {
             </div>
           </div>
 
-          {/* 下部左右：武器（左）と防具（右） */}
-          <div className="flex items-center justify-between px-2">
-            {/* 左側：武器 */}
+          {/* 3. 下部左右：武器（左）と防具（右） */}
+          <div className="flex items-center justify-between px-2 mt-3.5">
+            {/* 左側：武器アイコン（タップで保有武器リストを表示） */}
             <button
-              onClick={() => setShowEquipModal(true)}
-              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-zinc-800 active:scale-95 transition text-left"
-              title="タップして武器を変更"
+              onClick={() => {
+                sound.playClick();
+                setEquipModalType('weapon');
+                setShowEquipModal(true);
+              }}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-sky-500/40 hover:border-sky-400 active:scale-95 transition text-left group shadow-sm"
+              title="タップして持っている武器リストを開く"
             >
-              <div className="w-11 h-11 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-center p-1 shrink-0">
+              <div className="w-11 h-11 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center p-1 shrink-0 group-hover:border-sky-400/60 transition">
                 <WeaponIcon type={equippedWeapon.iconType} className="w-9 h-9" />
               </div>
               <div>
-                <div className="text-xs font-black text-white">
+                <div className="text-[10px] text-sky-400 font-bold flex items-center gap-0.5">
+                  <Swords className="w-3 h-3" />
+                  <span>ぶき</span>
+                </div>
+                <div className="text-xs font-black text-white leading-tight">
                   {equippedWeapon.name}
                 </div>
-                <div className="text-[11px] font-bold text-sky-400">
-                  (+{equippedWeapon.attackBonus})
+                <div className="text-[11px] font-bold text-sky-300">
+                  {equippedWeapon.id === 'none' ? '攻撃力 0' : `攻撃力 +${equippedWeapon.attackBonus}`}
                 </div>
               </div>
             </button>
@@ -861,21 +1129,29 @@ export default function App() {
               </div>
             )}
 
-            {/* 右側：防具 */}
+            {/* 右側：防具アイコン（タップで保有防具リストを表示） */}
             <button
-              onClick={() => setShowEquipModal(true)}
-              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-zinc-900 border border-transparent hover:border-zinc-800 active:scale-95 transition text-right"
-              title="タップして防具を変更"
+              onClick={() => {
+                sound.playClick();
+                setEquipModalType('armor');
+                setShowEquipModal(true);
+              }}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-emerald-500/40 hover:border-emerald-400 active:scale-95 transition text-right group shadow-sm"
+              title="タップして持っている防具リストを開く"
             >
               <div>
-                <div className="text-xs font-black text-white">
+                <div className="text-[10px] text-emerald-400 font-bold flex items-center justify-end gap-0.5">
+                  <span>ぼうぐ</span>
+                  <Shield className="w-3 h-3" />
+                </div>
+                <div className="text-xs font-black text-white leading-tight">
                   {equippedArmor.name}
                 </div>
-                <div className="text-[11px] font-bold text-emerald-400">
-                  (+{equippedArmor.defenseBonus})
+                <div className="text-[11px] font-bold text-emerald-300">
+                  {equippedArmor.id === 'none' ? '防御力 0' : `防御力 +${equippedArmor.defenseBonus}`}
                 </div>
               </div>
-              <div className="w-11 h-11 bg-zinc-900 rounded-lg border border-zinc-800 flex items-center justify-center p-1 shrink-0">
+              <div className="w-11 h-11 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center p-1 shrink-0 group-hover:border-emerald-400/60 transition">
                 <ArmorIcon type={equippedArmor.iconType} className="w-9 h-9" />
               </div>
             </button>
@@ -963,18 +1239,207 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          装備・設定モーダル（武器・防具の手動切り替え＆問題カテゴリ切り替え）
+          ⚔️🛡️ そうびモーダル（保有している武器・防具リストから選択＆装備）
          ==================================================================== */}
       {showEquipModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-3xl p-5 shadow-2xl max-h-[85vh] flex flex-col">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                {equipModalType === 'weapon' ? (
+                  <>
+                    <Swords className="w-5 h-5 text-sky-400" />
+                    <span>ぶき の そうび</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                    <span>ぼうぐ の そうび</span>
+                  </>
+                )}
+              </h3>
+              {/* タブ切り替えボタン */}
+              <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setEquipModalType('weapon');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    equipModalType === 'weapon'
+                      ? 'bg-sky-500 text-white shadow'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  ⚔️ ぶき
+                </button>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setEquipModalType('armor');
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    equipModalType === 'armor'
+                      ? 'bg-emerald-500 text-white shadow'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  🛡️ ぼうぐ
+                </button>
+              </div>
+            </div>
+
+            {/* 説明文 */}
+            <p className="text-[11px] text-zinc-400 mt-2.5 mb-1.5 font-bold">
+              {equipModalType === 'weapon'
+                ? '持っている武器をタップして装備を切り替えられます'
+                : '持っている防具をタップして装備を切り替えられます'}
+            </p>
+
+            {/* 保有アイテムリスト（攻撃力・防御力昇順、「なし」が最上部） */}
+            <div className="flex-1 overflow-y-auto space-y-2 py-2 pr-1">
+              {equipModalType === 'weapon' ? (
+                // 武器リスト: 「なし」が最上部、以降は攻撃力昇順
+                [
+                  ...WEAPON_LIST.filter((w) => w.id === 'none'),
+                  ...WEAPON_LIST.filter((w) => w.id !== 'none' && ownedWeaponIds.includes(w.id)).sort(
+                    (a, b) => a.attackBonus - b.attackBonus
+                  ),
+                ].map((w) => {
+                  const isEquipped = equippedWeapon.id === w.id;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => handleEquipWeapon(w)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition active:scale-98 select-none text-left ${
+                        isEquipped
+                          ? 'bg-sky-950/80 border-2 border-sky-400 ring-2 ring-sky-400/40 shadow-lg'
+                          : 'bg-zinc-800/80 border border-zinc-700/80 hover:border-zinc-500'
+                      }`}
+                    >
+                      {/* 1. 左：アイテムのアイコン画像 */}
+                      <div className={`w-12 h-12 rounded-xl border flex items-center justify-center p-1 shrink-0 ${
+                        isEquipped ? 'bg-sky-900/40 border-sky-400/60' : 'bg-zinc-950/80 border-zinc-800'
+                      }`}>
+                        <WeaponIcon type={w.iconType} className="w-10 h-10" />
+                      </div>
+
+                      {/* 2. 中央：アイテムの名前 ＆ そうび中バッジ */}
+                      <div className="flex-1 px-3 min-w-0">
+                        <div className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
+                          <span className="truncate">{w.name}</span>
+                          {isEquipped && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500 text-white shadow-sm flex items-center gap-0.5 shrink-0 animate-in fade-in duration-200">
+                              <Check className="w-3 h-3" />
+                              <span>そうび中</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-bold mt-0.5">
+                          {w.id === 'none' ? '武器をはずす（ボーナスなし）' : 'タップでこの武器をそうび'}
+                        </div>
+                      </div>
+
+                      {/* 3. 右：アイテムの強さ（攻撃力） */}
+                      <div className="text-right shrink-0">
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-xl inline-block ${
+                          isEquipped
+                            ? 'bg-sky-500/25 text-sky-200 border border-sky-400/60 shadow-sm'
+                            : 'bg-zinc-900 text-zinc-300 border border-zinc-700'
+                        }`}>
+                          {w.id === 'none' ? '攻撃力 0' : `攻撃力 +${w.attackBonus}`}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                // 防具リスト: 「なし」が最上部、以降は防御力昇順
+                [
+                  ...ARMOR_LIST.filter((a) => a.id === 'none'),
+                  ...ARMOR_LIST.filter((a) => a.id !== 'none' && ownedArmorIds.includes(a.id)).sort(
+                    (a, b) => a.defenseBonus - b.defenseBonus
+                  ),
+                ].map((a) => {
+                  const isEquipped = equippedArmor.id === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => handleEquipArmor(a)}
+                      className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition active:scale-98 select-none text-left ${
+                        isEquipped
+                          ? 'bg-emerald-950/80 border-2 border-emerald-400 ring-2 ring-emerald-400/40 shadow-lg'
+                          : 'bg-zinc-800/80 border border-zinc-700/80 hover:border-zinc-500'
+                      }`}
+                    >
+                      {/* 1. 左：アイテムのアイコン画像 */}
+                      <div className={`w-12 h-12 rounded-xl border flex items-center justify-center p-1 shrink-0 ${
+                        isEquipped ? 'bg-emerald-900/40 border-emerald-400/60' : 'bg-zinc-950/80 border-zinc-800'
+                      }`}>
+                        <ArmorIcon type={a.iconType} className="w-10 h-10" />
+                      </div>
+
+                      {/* 2. 中央：アイテムの名前 ＆ そうび中バッジ */}
+                      <div className="flex-1 px-3 min-w-0">
+                        <div className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
+                          <span className="truncate">{a.name}</span>
+                          {isEquipped && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-white shadow-sm flex items-center gap-0.5 shrink-0 animate-in fade-in duration-200">
+                              <Check className="w-3 h-3" />
+                              <span>そうび中</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-bold mt-0.5">
+                          {a.id === 'none' ? '防具をはずす（ボーナスなし）' : 'タップでこの防具をそうび'}
+                        </div>
+                      </div>
+
+                      {/* 3. 右：アイテムの強さ（防御力） */}
+                      <div className="text-right shrink-0">
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-xl inline-block ${
+                          isEquipped
+                            ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/60 shadow-sm'
+                            : 'bg-zinc-900 text-zinc-300 border border-zinc-700'
+                        }`}>
+                          {a.id === 'none' ? '防御力 0' : `防御力 +${a.defenseBonus}`}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 最下部：「もどる」ボタン */}
+            <button
+              onClick={() => {
+                sound.playClick();
+                setShowEquipModal(false);
+              }}
+              className="mt-3.5 w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base rounded-2xl border-2 border-sky-300 shadow-[0_4px_0_#1e3a8a] transition flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">↩️</span>
+              <span>もどる</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          ⚙️ 設定モーダル（出題モード・ルールガイド・ボス召喚テスト・キャッシュ更新）
+         ==================================================================== */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
               <h3 className="text-base font-black text-white flex items-center gap-2">
-                <Settings className="w-4 h-4 text-sky-400" />
-                <span>そうび ＆ もんだい せってい</span>
+                <Settings className="w-4 h-4 text-yellow-400" />
+                <span>ゲーム せってい</span>
               </h3>
               <button
-                onClick={() => setShowEquipModal(false)}
+                onClick={() => setShowSettingsModal(false)}
                 className="text-xs font-bold px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-zinc-300"
               >
                 とじる
@@ -1036,7 +1501,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* ステージ連動算数の難易度ガイド（gameDataのMATH_DIFFICULTY_RULESと完全連動） */}
+              {/* ステージ連動算数の難易度ガイド */}
               {quizMode === 'auto_stage_math' ? (
                 <div className="mt-2.5 p-2 rounded-xl bg-yellow-950/30 border border-yellow-500/30 text-[10px] text-yellow-200/90 space-y-1">
                   <div className="font-bold text-yellow-300">【ステージ連動 算数ルール】</div>
@@ -1094,116 +1559,6 @@ export default function App() {
               )}
             </div>
 
-            {/* 2. 武器選択 */}
-            <div className="mt-4">
-              <div className="text-xs font-black text-zinc-400 mb-2 flex items-center gap-1.5">
-                <Swords className="w-3.5 h-3.5 text-sky-400" />
-                <span>ぶきを えらぶ（攻撃力アップ）</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {WEAPON_LIST.map((w) => {
-                  const isSelected = equippedWeapon.id === w.id;
-                  const isLocked = !!w.isLocked;
-
-                  return (
-                    <button
-                      key={w.id}
-                      onClick={() => {
-                        if (isLocked) {
-                          sound.playWrong();
-                          setLockMessage(`「${w.name}」はロック中！ 今後のぼうけんで手に入れたら使えるよ！`);
-                          setTimeout(() => setLockMessage(null), 3000);
-                          return;
-                        }
-                        sound.playClick();
-                        setEquippedWeapon(w);
-                      }}
-                      className={`relative flex items-center gap-2 p-2 rounded-xl border text-left transition select-none ${
-                        isLocked
-                          ? 'bg-zinc-950/70 border-zinc-800/80 text-zinc-500 opacity-60 cursor-not-allowed'
-                          : isSelected
-                          ? 'bg-blue-900/40 border-blue-400 text-white ring-1 ring-blue-400/40 active:scale-95'
-                          : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-300 hover:border-zinc-500 active:scale-95'
-                      }`}
-                    >
-                      <div className="relative shrink-0">
-                        <WeaponIcon type={w.iconType} className={`w-7 h-7 ${isLocked ? 'grayscale opacity-50' : ''}`} />
-                        {isLocked && (
-                          <div className="absolute -top-1.5 -right-1.5 p-0.5 bg-zinc-900 rounded-full border border-zinc-700 shadow">
-                            <Lock className="w-2.5 h-2.5 text-zinc-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold leading-tight flex items-center gap-1">
-                          <span className="truncate">{w.name}</span>
-                          {isLocked && <span className="text-[9px] text-zinc-500 font-normal">🔒未解禁</span>}
-                        </div>
-                        <div className={`text-[10px] font-bold ${isLocked ? 'text-zinc-600' : 'text-sky-400'}`}>
-                          +{w.attackBonus}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 3. 防具選択 */}
-            <div className="mt-4">
-              <div className="text-xs font-black text-zinc-400 mb-2 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-emerald-400" />
-                <span>ぼうぐを えらぶ（受けるダメージ減少）</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {ARMOR_LIST.map((a) => {
-                  const isSelected = equippedArmor.id === a.id;
-                  const isLocked = !!a.isLocked;
-
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => {
-                        if (isLocked) {
-                          sound.playWrong();
-                          setLockMessage(`「${a.name}」はロック中！ 今後のぼうけんで手に入れたら使えるよ！`);
-                          setTimeout(() => setLockMessage(null), 3000);
-                          return;
-                        }
-                        sound.playClick();
-                        setEquippedArmor(a);
-                      }}
-                      className={`relative flex items-center gap-2 p-2 rounded-xl border text-left transition select-none ${
-                        isLocked
-                          ? 'bg-zinc-950/70 border-zinc-800/80 text-zinc-500 opacity-60 cursor-not-allowed'
-                          : isSelected
-                          ? 'bg-emerald-900/40 border-emerald-400 text-white ring-1 ring-emerald-400/40 active:scale-95'
-                          : 'bg-zinc-800/60 border-zinc-700/60 text-zinc-300 hover:border-zinc-500 active:scale-95'
-                      }`}
-                    >
-                      <div className="relative shrink-0">
-                        <ArmorIcon type={a.iconType} className={`w-7 h-7 ${isLocked ? 'grayscale opacity-50' : ''}`} />
-                        {isLocked && (
-                          <div className="absolute -top-1.5 -right-1.5 p-0.5 bg-zinc-900 rounded-full border border-zinc-700 shadow">
-                            <Lock className="w-2.5 h-2.5 text-zinc-400" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold leading-tight flex items-center gap-1">
-                          <span className="truncate">{a.name}</span>
-                          {isLocked && <span className="text-[9px] text-zinc-500 font-normal">🔒未解禁</span>}
-                        </div>
-                        <div className={`text-[10px] font-bold ${isLocked ? 'text-zinc-600' : 'text-emerald-400'}`}>
-                          +{a.defenseBonus}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* ロック警告メッセージ */}
             {lockMessage && (
               <div className="mt-3 p-2 rounded-xl bg-amber-950/80 border border-amber-500/60 text-[11px] text-amber-200 font-bold text-center anim-pop flex items-center justify-center gap-1.5 shadow-lg">
@@ -1212,11 +1567,123 @@ export default function App() {
               </div>
             )}
 
+            {/* ボス戦テスト召喚 ＆ おみせテストボタン */}
+            <div className="mt-3.5 pt-3 border-t border-zinc-800/80">
+              <div className="text-xs font-black text-amber-300 mb-1.5 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span>👑</span>
+                  <span>テスト機能（すぐ確認可能）</span>
+                </div>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    const newMoney = money + 500;
+                    setMoney(newMoney);
+                    try {
+                      localStorage.setItem('hirameki_money', newMoney.toString());
+                    } catch {}
+                    setLockMessage('おかねを 500円 追加しました！');
+                    setTimeout(() => setLockMessage(null), 2000);
+                  }}
+                  className="py-0.5 px-2 rounded-lg bg-yellow-500/20 border border-yellow-400/50 hover:bg-yellow-500/30 text-yellow-300 text-[10px] font-black transition active:scale-95"
+                >
+                  🪙 +500円追加
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setShowSettingsModal(false);
+                    handleTriggerBoss('boss_metal_caterpillar_bo');
+                  }}
+                  className="py-2 px-1.5 rounded-xl bg-gradient-to-r from-orange-950 to-zinc-900 border border-orange-500/80 text-orange-200 hover:text-white text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition active:scale-95 shadow-sm text-center"
+                >
+                  <span className="text-base">🐛</span>
+                  <span className="truncate">いもむしボー</span>
+                </button>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setShowSettingsModal(false);
+                    handleTriggerBoss();
+                  }}
+                  className="py-2 px-1.5 rounded-xl bg-zinc-900 border border-red-500/60 text-red-300 hover:text-white text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition active:scale-95 shadow-sm text-center"
+                >
+                  <span className="text-base">🎲</span>
+                  <span className="truncate">ランダムボス</span>
+                </button>
+                <button
+                  onClick={() => {
+                    sound.playClick();
+                    setShowSettingsModal(false);
+                    setShowShop(true);
+                  }}
+                  className="py-2 px-1.5 rounded-xl bg-zinc-900 border border-amber-500/60 text-amber-300 hover:text-white text-[10px] font-black flex flex-col items-center justify-center gap-0.5 transition active:scale-95 shadow-sm text-center"
+                >
+                  <span className="text-base">🛒</span>
+                  <span className="truncate">おみせテスト</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 装備・所持品初期化ボタン */}
+            <div className="mt-3.5 pt-3 border-t border-zinc-800/80">
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setOwnedWeaponIds(['none']);
+                  setOwnedArmorIds(['none']);
+                  setEquippedWeapon(WEAPON_LIST[0]);
+                  setEquippedArmor(ARMOR_LIST[0]);
+                  try {
+                    localStorage.removeItem('hirameki_owned_weapons');
+                    localStorage.removeItem('hirameki_owned_armors');
+                    localStorage.removeItem('hirameki_equipped_weapon_id');
+                    localStorage.removeItem('hirameki_equipped_armor_id');
+                  } catch {}
+                  setLockMessage('装備を「初期状態（なし）」にリセットしました！');
+                  setTimeout(() => setLockMessage(null), 2500);
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-zinc-900 border border-zinc-700/80 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <span>そうびを「初期状態（なし）」にリセット</span>
+              </button>
+            </div>
+
+            {/* キャッシュ更新・最新版強制再読み込みボタン */}
+            <div className="mt-3.5 pt-3 border-t border-zinc-800/80">
+              <button
+                onClick={async () => {
+                  sound.playClick();
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map((k) => caches.delete(k)));
+                  }
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    for (const reg of regs) {
+                      await reg.unregister();
+                    }
+                  }
+                  window.location.reload();
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 shadow-sm"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-sky-400" />
+                <span>最新版に更新（キャッシュ消去）</span>
+              </button>
+              <div className="text-[10px] text-zinc-500 text-center mt-1">
+                ※画面レイアウトやアイコンが反映されない場合にタップしてください（v3.0）
+              </div>
+            </div>
+
             <button
-              onClick={() => setShowEquipModal(false)}
-              className="mt-5 w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl"
+              onClick={() => setShowSettingsModal(false)}
+              className="mt-4 w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl"
             >
-              けってい
+              とじる
             </button>
           </div>
         </div>
@@ -1342,12 +1809,317 @@ export default function App() {
               </div>
             </div>
 
+            {/* ボス勝利後の選択肢（おみせにいく / つぎにすすむ） */}
+            <div className="w-full flex flex-col gap-2.5 mt-2">
+              {/* 1. おみせにいく ボタン */}
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setShowShop(true);
+                }}
+                className="w-full py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base sm:text-lg rounded-2xl shadow-[0_4px_0_#1e3a8a] border-2 border-sky-300 tracking-wide transition-all flex items-center justify-center gap-2.5"
+              >
+                <span className="text-2xl filter drop-shadow">🛒</span>
+                <span className="drop-shadow">おみせにいく</span>
+              </button>
+
+              {/* 2. つぎにすすむ！ ▶ ボタン */}
+              <button
+                onClick={handleProceedFromBossVictory}
+                className="w-full py-3 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-amber-300 active:scale-95 text-zinc-950 font-black text-base rounded-2xl shadow-[0_4px_0_#b45309] border border-white tracking-wide transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>つぎにすすむ！</span>
+                <span>▶</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          🛒 おみせ画面モーダル（武器・防具の購入画面）
+         ==================================================================== */}
+      {showShop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm bg-gradient-to-b from-zinc-900 via-zinc-950 to-black border-2 border-amber-500/80 rounded-3xl p-4 sm:p-5 shadow-[0_0_50px_rgba(245,158,11,0.3)] max-h-[90vh] flex flex-col">
+            {/* ヘッダー */}
+            <div className="pb-3 border-b border-zinc-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-amber-300 flex items-center gap-1.5">
+                  <span>🛒</span>
+                  <span>ぼうけんのおみせ</span>
+                </h3>
+                <p className="text-[10px] text-zinc-400 font-bold mt-0.5">
+                  ぶき や ぼうぐ を かって パワーアップ！
+                </p>
+              </div>
+
+              {/* 所持金表示 */}
+              <div className="px-3 py-1.5 rounded-xl bg-amber-950/80 border border-amber-500/60 flex items-center gap-1.5 shadow-sm">
+                <span className="text-sm">🪙</span>
+                <span className="text-xs font-black text-yellow-300">
+                  {money.toLocaleString()} 円
+                </span>
+              </div>
+            </div>
+
+            {/* 商品リスト（武器価格昇順 → 防具価格昇順） */}
+            <div className="flex-1 overflow-y-auto space-y-4 py-3 pr-1">
+              {/* 1. 武器セクション（価格昇順） */}
+              <div>
+                <div className="text-xs font-black text-sky-400 mb-2 flex items-center gap-1 px-1">
+                  <Swords className="w-3.5 h-3.5" />
+                  <span>ぶき（武器）</span>
+                </div>
+                <div className="space-y-2">
+                  {WEAPON_LIST.filter((w) => w.id !== 'none')
+                    .sort((a, b) => a.price - b.price)
+                    .map((w) => {
+                      const isOwned = ownedWeaponIds.includes(w.id);
+                      const isEquipped = equippedWeapon.id === w.id;
+                      return (
+                        <button
+                          key={w.id}
+                          onClick={() => {
+                            sound.playClick();
+                            if (isOwned) {
+                              setLockMessage(`「${w.name}」は すでに持っています！そうび画面から選べるよ！`);
+                              setTimeout(() => setLockMessage(null), 2500);
+                              return;
+                            }
+                            setSelectedShopItem({
+                              id: w.id,
+                              name: w.name,
+                              bonus: w.attackBonus,
+                              iconType: w.iconType,
+                              price: w.price,
+                              type: 'weapon',
+                            });
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition active:scale-98 text-left ${
+                            isOwned
+                              ? 'bg-zinc-900/60 border-zinc-800 opacity-80'
+                              : 'bg-zinc-800/80 border-sky-500/40 hover:border-sky-400 shadow-sm'
+                          }`}
+                        >
+                          {/* 左：アイコン */}
+                          <div className="w-11 h-11 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center p-1 shrink-0">
+                            <WeaponIcon type={w.iconType} className="w-9 h-9" />
+                          </div>
+
+                          {/* 中央：名前＆強さ */}
+                          <div className="flex-1 px-3">
+                            <div className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                              <span>{w.name}</span>
+                              {isEquipped && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-sky-500 text-white">
+                                  そうび中
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-bold text-sky-400 mt-0.5">
+                              攻撃力 +{w.attackBonus}
+                            </div>
+                          </div>
+
+                          {/* 右：価格 ＆ 購入ずみバッジ */}
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                            <span className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs font-black shadow flex items-center gap-1 border border-yellow-200">
+                              <span>🪙</span>
+                              <span>{w.price.toLocaleString()} 円</span>
+                            </span>
+                            {isOwned && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-900 text-emerald-400 text-[10px] font-black border border-emerald-500/40 flex items-center gap-0.5">
+                                <Check className="w-2.5 h-2.5" />
+                                <span>購入ずみ</span>
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* 2. 防具セクション（価格昇順） */}
+              <div>
+                <div className="text-xs font-black text-emerald-400 mb-2 flex items-center gap-1 px-1">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>ぼうぐ（防具）</span>
+                </div>
+                <div className="space-y-2">
+                  {ARMOR_LIST.filter((a) => a.id !== 'none')
+                    .sort((a, b) => a.price - b.price)
+                    .map((a) => {
+                      const isOwned = ownedArmorIds.includes(a.id);
+                      const isEquipped = equippedArmor.id === a.id;
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => {
+                            sound.playClick();
+                            if (isOwned) {
+                              setLockMessage(`「${a.name}」は すでに持っています！そうび画面から選べるよ！`);
+                              setTimeout(() => setLockMessage(null), 2500);
+                              return;
+                            }
+                            setSelectedShopItem({
+                              id: a.id,
+                              name: a.name,
+                              bonus: a.defenseBonus,
+                              iconType: a.iconType,
+                              price: a.price,
+                              type: 'armor',
+                            });
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition active:scale-98 text-left ${
+                            isOwned
+                              ? 'bg-zinc-900/60 border-zinc-800 opacity-80'
+                              : 'bg-zinc-800/80 border-emerald-500/40 hover:border-emerald-400 shadow-sm'
+                          }`}
+                        >
+                          {/* 左：アイコン */}
+                          <div className="w-11 h-11 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center p-1 shrink-0">
+                            <ArmorIcon type={a.iconType} className="w-9 h-9" />
+                          </div>
+
+                          {/* 中央：名前＆強さ */}
+                          <div className="flex-1 px-3">
+                            <div className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                              <span>{a.name}</span>
+                              {isEquipped && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-500 text-white">
+                                  そうび中
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-bold text-emerald-400 mt-0.5">
+                              防御力 +{a.defenseBonus}
+                            </div>
+                          </div>
+
+                          {/* 右：価格 ＆ 購入ずみバッジ */}
+                          <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                            <span className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-black text-xs font-black shadow flex items-center gap-1 border border-yellow-200">
+                              <span>🪙</span>
+                              <span>{a.price.toLocaleString()} 円</span>
+                            </span>
+                            {isOwned && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-900 text-emerald-400 text-[10px] font-black border border-emerald-500/40 flex items-center gap-0.5">
+                                <Check className="w-2.5 h-2.5" />
+                                <span>購入ずみ</span>
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* お店メッセージ表示 */}
+            {lockMessage && (
+              <div className="my-2 p-2 rounded-xl bg-amber-950/90 border border-amber-500/60 text-[11px] text-amber-200 font-bold text-center anim-pop">
+                {lockMessage}
+              </div>
+            )}
+
+            {/* 最下部：「おみせをでる」ボタン（ボス戦クリア画面に戻る） */}
             <button
-              onClick={handleProceedFromBossVictory}
-              className="w-full py-3.5 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-amber-300 active:scale-95 text-zinc-950 font-black text-lg rounded-2xl shadow-[0_4px_0_#b45309] border border-white tracking-wide transition-all"
+              onClick={() => {
+                sound.playClick();
+                setShowShop(false);
+              }}
+              className="mt-3.5 w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base rounded-2xl border-2 border-sky-300 shadow-[0_4px_0_#1e3a8a] transition flex items-center justify-center gap-2"
             >
-              つぎにすすむ！ ▶
+              <span className="text-lg">↩️</span>
+              <span>おみせをでる</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          🛍️ おみせ購入確認ウィンドウ（「かいますか？」3択：かう／かって装備する／かわない）
+         ==================================================================== */}
+      {selectedShopItem && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-xs bg-zinc-900 border-2 border-yellow-400 rounded-3xl p-5 shadow-2xl text-center flex flex-col items-center anim-pop">
+            <span className="text-3xl mb-1">🛒</span>
+            <h4 className="text-lg font-black text-yellow-300">かいますか？</h4>
+
+            {/* アイテムカード */}
+            <div className="w-full bg-black/70 border border-zinc-800 rounded-2xl p-3 my-3 flex items-center gap-3">
+              <div className="w-12 h-12 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-center p-1 shrink-0">
+                {selectedShopItem.type === 'weapon' ? (
+                  <WeaponIcon type={selectedShopItem.iconType as any} className="w-10 h-10" />
+                ) : (
+                  <ArmorIcon type={selectedShopItem.iconType as any} className="w-10 h-10" />
+                )}
+              </div>
+              <div className="text-left flex-1 min-w-0">
+                <div className="text-sm font-black text-white truncate">
+                  {selectedShopItem.name}
+                </div>
+                <div className="text-xs font-bold text-sky-400">
+                  {selectedShopItem.type === 'weapon'
+                    ? `攻撃力 +${selectedShopItem.bonus}`
+                    : `防御力 +${selectedShopItem.bonus}`}
+                </div>
+                <div className="text-xs font-black text-amber-300 mt-0.5">
+                  価格：🪙 {selectedShopItem.price.toLocaleString()} 円
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-zinc-400 font-bold mb-3">
+              あなたのおかね：<strong className="text-yellow-300">{money.toLocaleString()} 円</strong>
+            </p>
+
+            {/* 3つの選択肢ボタン */}
+            <div className="w-full flex flex-col gap-2">
+              {/* 1. かう */}
+              <button
+                onClick={() => handleBuyItem(false)}
+                className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-zinc-950 font-black text-sm rounded-xl border border-yellow-200 shadow transition"
+              >
+                かう
+              </button>
+
+              {/* 2. かって装備する */}
+              <button
+                onClick={() => handleBuyItem(true)}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-95 text-white font-black text-sm rounded-xl border border-emerald-300 shadow transition"
+              >
+                かって装備（そうび）する
+              </button>
+
+              {/* 3. かわない */}
+              <button
+                onClick={() => {
+                  sound.playClick();
+                  setSelectedShopItem(null);
+                }}
+                className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-300 hover:text-white font-bold text-xs rounded-xl border border-zinc-700 transition"
+              >
+                かわない
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          ⚠️ 「おかねがたりません」アラート（0.5秒間表示）
+         ==================================================================== */}
+      {showNotEnoughMoney && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-100">
+          <div className="bg-zinc-950 border-2 border-red-500 rounded-2xl px-6 py-5 shadow-[0_0_40px_rgba(239,68,68,0.7)] flex flex-col items-center gap-2 anim-shake">
+            <span className="text-4xl">❌</span>
+            <span className="text-lg font-black text-red-400 tracking-wide">
+              おかねがたりません
+            </span>
           </div>
         </div>
       )}

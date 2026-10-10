@@ -46,7 +46,8 @@ export type MonsterSvgType =
   // 👑 強敵ボスキャラクター（3ステージ毎に出現）
   | 'inferno_dragon'
   | 'ancient_golem'
-  | 'archdemon_lord';
+  | 'archdemon_lord'
+  | 'metal_caterpillar_bo';
 
 export interface EnemyDefinition {
   id: string;
@@ -69,7 +70,7 @@ export interface BossDefinition extends EnemyDefinition {
   bossTitle: string;        // 例: 「灼熱の暴君」
   bossSubtitleEn: string;   // 例: "INFERNO DRAGON"
   introQuote: string;       // カットイン時の決め台詞
-  themeColor: 'red' | 'cyan' | 'purple';
+  themeColor: 'red' | 'cyan' | 'purple' | 'orange' | 'silver';
   auraRgb: string;          // 演出用RGB
 }
 
@@ -89,6 +90,7 @@ export interface WeaponItem {
   name: string;
   attackBonus: number;
   iconType: 'none' | 'wooden_sword' | 'iron_sword' | 'diamond_sword';
+  price: number;
   /* TODO: 画像差し替え用パス */
   imagePath?: string | null;
   isLocked?: boolean;
@@ -100,6 +102,7 @@ export interface ArmorItem {
   name: string;
   defenseBonus: number;
   iconType: 'none' | 'leather_armor' | 'iron_armor' | 'diamond_armor';
+  price: number;
   /* TODO: 画像差し替え用パス */
   imagePath?: string | null;
   isLocked?: boolean;
@@ -108,6 +111,7 @@ export interface ArmorItem {
 
 export interface GameConfig {
   scoreMultiplierPerAttack: number;
+  scorePerCorrectAnswer: number; // 問題正解時の獲得スコア（一律100点）
   // ステージごとの敵HP計算式
   calculateEnemyHp: (stage: number) => number;
   // ステージごとの敵基礎攻撃力計算式
@@ -118,7 +122,8 @@ export interface GameConfig {
 
 // --- ゲーム難易度・計算パラメータ（要望に準拠） ---
 export const GAME_CONFIG: GameConfig = {
-  scoreMultiplierPerAttack: 100, // 攻撃1ポイントにつき100点加算（デザイン案の3,000てん等の演出）
+  scoreMultiplierPerAttack: 100,
+  scorePerCorrectAnswer: 100, // 正解時は一律100点加算
   // 初期HPは3、ステージが5つ進むごとに+1加算
   calculateEnemyHp: (stage: number) => {
     return 3 + Math.floor((stage - 1) / 5);
@@ -441,6 +446,22 @@ export const BOSS_LIST: BossDefinition[] = [
     auraRgb: '168, 85, 247',
     isBoss: true,
   },
+  // 4. メタルいもむし・ボー（全身メタルの巨大いもむし・肩にオレンジマーク・足元からジェット炎で飛行）
+  {
+    id: 'boss_metal_caterpillar_bo',
+    name: 'メタルいもむし・ボー',
+    bossTitle: '鋼鉄（こうてつ）の飛翔（ひしょう）巨虫（きょちゅう）',
+    bossSubtitleEn: 'METAL CATERPILLAR BO',
+    categoryTag: '👑 大ボス',
+    svgType: 'metal_caterpillar_bo',
+    imagePath: null,
+    bgGradient: 'from-slate-900 via-zinc-950 to-black',
+    flavor: '全身（ぜんしん）メタルの巨大（きょだい）いもむし！肩（かた）にオレンジの丸（まる）いマークがあり、足元（あしもと）のジェット炎（ほのお）で大空（おおぞら）をとぶぞ！',
+    introQuote: '「キィーーン！我（わ）が鋼鉄（こうてつ）の巨体（きょたい）とジェットの炎（ほのお）を見（み）よ！」',
+    themeColor: 'orange',
+    auraRgb: '249, 115, 22',
+    isBoss: true,
+  },
 ];
 
 /**
@@ -459,7 +480,7 @@ export const WEAPON_LIST: WeaponItem[] = [
     name: 'なし',
     attackBonus: 0,
     iconType: 'none',
-    /* TODO: 画像差し替え用パス: null */
+    price: 0,
     imagePath: null,
     isLocked: false,
   },
@@ -468,7 +489,7 @@ export const WEAPON_LIST: WeaponItem[] = [
     name: '木のけん',
     attackBonus: 3,
     iconType: 'wooden_sword',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/wooden_sword.png' */
+    price: 50,
     imagePath: null,
     isLocked: false,
   },
@@ -477,20 +498,18 @@ export const WEAPON_LIST: WeaponItem[] = [
     name: '鉄のつるぎ',
     attackBonus: 5,
     iconType: 'iron_sword',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/iron_sword.png' */
+    price: 120,
     imagePath: null,
-    isLocked: true,
-    lockReason: '今後のぼうけんで ゲットしよう！',
+    isLocked: false,
   },
   {
     id: 'diamond_sword',
     name: 'ダイヤのけん',
     attackBonus: 10,
     iconType: 'diamond_sword',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/diamond_sword.png' */
+    price: 300,
     imagePath: null,
-    isLocked: true,
-    lockReason: '今後のぼうけんで ゲットしよう！',
+    isLocked: false,
   },
 ];
 
@@ -501,7 +520,7 @@ export const ARMOR_LIST: ArmorItem[] = [
     name: 'なし',
     defenseBonus: 0,
     iconType: 'none',
-    /* TODO: 画像差し替え用パス: null */
+    price: 0,
     imagePath: null,
     isLocked: false,
   },
@@ -510,7 +529,7 @@ export const ARMOR_LIST: ArmorItem[] = [
     name: '皮のふく',
     defenseBonus: 2,
     iconType: 'leather_armor',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/leather_armor.png' */
+    price: 40,
     imagePath: null,
     isLocked: false,
   },
@@ -519,20 +538,18 @@ export const ARMOR_LIST: ArmorItem[] = [
     name: '鉄のよろい',
     defenseBonus: 4,
     iconType: 'iron_armor',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/iron_armor.png' */
+    price: 100,
     imagePath: null,
-    isLocked: true,
-    lockReason: '今後のぼうけんで ゲットしよう！',
+    isLocked: false,
   },
   {
     id: 'diamond_armor',
     name: 'ダイヤのぼうぐ',
     defenseBonus: 8,
     iconType: 'diamond_armor',
-    /* TODO: 画像差し替え用パス: '/assets/images/items/diamond_armor.png' */
+    price: 250,
     imagePath: null,
-    isLocked: true,
-    lockReason: '今後のぼうけんで ゲットしよう！',
+    isLocked: false,
   },
 ];
 
@@ -707,36 +724,36 @@ export const MATH_DIFFICULTY_RULES: MathDifficultyStageRule[] = [
   {
     level: 1,
     title: '1桁の足し算引き算',
-    description: '1桁同士の計算（ステージ1〜10対応）',
-    stagesToClear: 10, // ★ステージ1〜10対応
+    description: '1桁同士の計算（ステージ1〜9：ボス3体討伐まで）',
+    stagesToClear: 9, // ★一律9ステージ（ボス3体討伐でレベルアップ）
     type: 'single_digits',
   },
   {
     level: 2,
     title: '2桁と1桁の足し算・引き算',
     description: '二桁の数字と一桁の数字の計算（例: 24 + 5, 38 - 6）',
-    stagesToClear: 5, // ステージ11〜15
+    stagesToClear: 9, // ステージ10〜18（ボス3体討伐でレベルアップ）
     type: 'double_and_single',
   },
   {
     level: 3,
     title: '3つの1桁の足し算・引き算',
     description: '3つの一桁の数字の計算（例: 3 + 2 + 4, 8 - 3 + 2）',
-    stagesToClear: 5, // ステージ16〜20
+    stagesToClear: 9, // ステージ19〜27（ボス3体討伐でレベルアップ）
     type: 'three_single',
   },
   {
     level: 4,
     title: '2桁と2桁の足し算・引き算',
     description: '二桁同士の本格的な計算（例: 24 + 35, 68 - 25）',
-    stagesToClear: 5, // ステージ21〜25
+    stagesToClear: 9, // ステージ28〜36（ボス3体討伐でレベルアップ）
     type: 'double_and_double',
   },
   {
     level: 5,
     title: '3つの2桁の足し算・引き算',
     description: '3つの二桁の数字の計算（例: 12 + 25 + 10, 65 - 20 - 15）',
-    stagesToClear: 9999, // ★最終レベル（ステージ26以降）
+    stagesToClear: 9999, // ★最終レベル（ステージ37以降）
     type: 'three_double',
   },
 ];

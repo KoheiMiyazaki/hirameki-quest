@@ -5,7 +5,7 @@
  * アプリを最新状態に自動リロード（強制クリーン更新）するロジック
  */
 
-const CACHE_VERSION = 'hirameki-quest-v2.0.0'; // バージョンを更新して旧キャッシュを強制パージ
+const CACHE_VERSION = 'hirameki-quest-v3.1.0'; // バージョンを更新して新アイコンとキャッシュを強制パージ
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

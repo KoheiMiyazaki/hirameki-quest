@@ -1660,6 +1660,181 @@ export const MonsterRenderer: React.FC<MonsterRendererProps> = ({ type, isHit = 
     );
   }
 
+  // 4. 👑 メタルいもむし・ボー （全身メタルの巨大いもむし・肩にオレンジの丸いマーク・足元からジェット炎で空中飛行）
+  if (type === 'metal_caterpillar_bo') {
+    return (
+      <svg {...svgBaseProps}>
+        <defs>
+          {/* メタリック鋼鉄グラデーション */}
+          <linearGradient id="metalChrome" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="25%" stopColor="#e2e8f0" />
+            <stop offset="50%" stopColor="#94a3b8" />
+            <stop offset="75%" stopColor="#475569" />
+            <stop offset="100%" stopColor="#1e293b" />
+          </linearGradient>
+
+          <linearGradient id="metalDark" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="50%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+
+          <linearGradient id="metalHighlight" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+            <stop offset="50%" stopColor="#94a3b8" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.9" />
+          </linearGradient>
+
+          {/* 肩のオレンジ色の丸いマーク専用グラデーション */}
+          <radialGradient id="orangeEmblem" cx="40%" cy="40%" r="60%">
+            <stop offset="0%" stopColor="#ffedd5" />
+            <stop offset="25%" stopColor="#fb923c" />
+            <stop offset="70%" stopColor="#ea580c" />
+            <stop offset="100%" stopColor="#9a3412" />
+          </radialGradient>
+
+          {/* ジェット噴射の火炎グラデーション */}
+          <linearGradient id="boosterFlame" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="20%" stopColor="#fef08a" />
+            <stop offset="50%" stopColor="#f97316" />
+            <stop offset="80%" stopColor="#ef4444" />
+            <stop offset="100%" stopColor="#b91c1c" stopOpacity="0" />
+          </linearGradient>
+
+          <radialGradient id="heatGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f97316" stopOpacity="0.6" />
+            <stop offset="60%" stopColor="#ef4444" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* --- 1. 地面のジェット火炎熱風シャドウ（空を飛んでいる浮遊感を演出） --- */}
+        <ellipse cx="160" cy="296" rx="90" ry="14" fill="url(#heatGlow)" />
+        <ellipse cx="160" cy="296" rx="55" ry="8" fill="#facc15" opacity="0.3" />
+
+        {/* --- 2. 体の下部（足元・接地部）から激しく噴射されるジェット炎（空を飛ぶ） --- */}
+        {/* 後部ジェット炎（セグメント4下部） */}
+        <g transform="translate(68, 205)">
+          <path d="M-10,0 Q-15,35 0,65 Q15,35 10,0 Z" fill="url(#boosterFlame)" />
+          <path d="M-5,0 Q-8,25 0,45 Q8,25 5,0 Z" fill="#ffffff" opacity="0.85" />
+        </g>
+        {/* 中央後部ジェット炎（セグメント3下部） */}
+        <g transform="translate(120, 218)">
+          <path d="M-13,0 Q-18,45 0,78 Q18,45 13,0 Z" fill="url(#boosterFlame)" />
+          <path d="M-7,0 Q-10,30 0,55 Q10,30 7,0 Z" fill="#ffffff" opacity="0.9" />
+        </g>
+        {/* 中央前部ジェット炎（セグメント2下部） */}
+        <g transform="translate(178, 218)">
+          <path d="M-14,0 Q-20,48 0,82 Q20,48 14,0 Z" fill="url(#boosterFlame)" />
+          <path d="M-8,0 Q-11,32 0,58 Q11,32 8,0 Z" fill="#ffffff" opacity="0.9" />
+        </g>
+        {/* 前部ジェット炎（頭部直下） */}
+        <g transform="translate(232, 205)">
+          <path d="M-11,0 Q-16,38 0,68 Q16,38 11,0 Z" fill="url(#boosterFlame)" />
+          <path d="M-6,0 Q-9,26 0,48 Q9,26 6,0 Z" fill="#ffffff" opacity="0.85" />
+        </g>
+
+        {/* 火の粉・エネルギーパーティクル */}
+        <circle cx="85" cy="265" r="3" fill="#fef08a" />
+        <circle cx="145" cy="285" r="4" fill="#fb923c" />
+        <circle cx="205" cy="275" r="3.5" fill="#fef08a" />
+        <circle cx="255" cy="255" r="2.5" fill="#ef4444" />
+
+        {/* --- 3. ジェットブースター噴射ノズル（各節の足元に装着） --- */}
+        <rect x="58" y="196" width="20" height="12" rx="3" fill="url(#metalDark)" stroke="#0f172a" strokeWidth="2" />
+        <line x1="59" y1="202" x2="77" y2="202" stroke="#f97316" strokeWidth="1.5" />
+        <rect x="108" y="208" width="24" height="14" rx="4" fill="url(#metalDark)" stroke="#0f172a" strokeWidth="2" />
+        <line x1="109" y1="215" x2="131" y2="215" stroke="#f97316" strokeWidth="1.5" />
+        <rect x="166" y="208" width="24" height="14" rx="4" fill="url(#metalDark)" stroke="#0f172a" strokeWidth="2" />
+        <line x1="167" y1="215" x2="189" y2="215" stroke="#f97316" strokeWidth="1.5" />
+        <rect x="222" y="196" width="20" height="12" rx="3" fill="url(#metalDark)" stroke="#0f172a" strokeWidth="2" />
+        <line x1="223" y1="202" x2="241" y2="202" stroke="#f97316" strokeWidth="1.5" />
+
+        {/* --- 4. 全身メタルの巨大いもむし本体（後部から前部へ重なる波打つ節々） --- */}
+
+        {/* 第5節（お尻の尾部）：球体スチール装甲 */}
+        <ellipse cx="48" cy="175" rx="26" ry="24" fill="url(#metalChrome)" stroke="#1e293b" strokeWidth="3" />
+        <ellipse cx="42" cy="168" rx="12" ry="7" fill="#ffffff" opacity="0.6" />
+        {/* 尾部のリベット（鋲） */}
+        <circle cx="32" cy="175" r="2.5" fill="#334155" />
+        <circle cx="42" cy="188" r="2.5" fill="#334155" />
+
+        {/* 第4節（胴体後部） */}
+        <ellipse cx="88" cy="165" rx="34" ry="38" fill="url(#metalChrome)" stroke="#1e293b" strokeWidth="3.5" />
+        {/* 節のアーマープレート分割線 */}
+        <path d="M72 135 Q88 165 76 195" stroke="#475569" strokeWidth="2" fill="none" />
+        <ellipse cx="82" cy="142" rx="14" ry="8" fill="#ffffff" opacity="0.5" />
+        <circle cx="78" cy="132" r="2" fill="#334155" />
+        <circle cx="72" cy="165" r="2" fill="#334155" />
+
+        {/* 第3節（胴体中央部） */}
+        <ellipse cx="140" cy="155" rx="40" ry="44" fill="url(#metalChrome)" stroke="#1e293b" strokeWidth="3.5" />
+        <path d="M122 120 Q142 155 128 190" stroke="#475569" strokeWidth="2.5" fill="none" />
+        <ellipse cx="132" cy="130" rx="18" ry="9" fill="#ffffff" opacity="0.55" />
+        {/* メタル排気スリット */}
+        <line x1="130" y1="180" x2="148" y2="180" stroke="#1e293b" strokeWidth="2.5" />
+        <line x1="132" y1="185" x2="146" y2="185" stroke="#1e293b" strokeWidth="2.5" />
+
+        {/* 第2節（胴体前部・肩あたり）：★オレンジ色の丸いマークがある重要パーツ！ */}
+        <ellipse cx="198" cy="150" rx="42" ry="46" fill="url(#metalChrome)" stroke="#1e293b" strokeWidth="3.5" />
+        <ellipse cx="190" cy="122" rx="20" ry="10" fill="#ffffff" opacity="0.6" />
+
+        {/* ★★★ 要望の核心：側面（人でいう肩あたり）の「オレンジ色の丸いマーク」 ★★★ */}
+        <g id="shoulder-orange-emblem">
+          {/* 外側の機械マウントリング（チタンシルバー） */}
+          <circle cx="188" cy="142" r="19" fill="#1e293b" stroke="#94a3b8" strokeWidth="2" />
+          {/* オレンジ色の発光オーラ */}
+          <circle cx="188" cy="142" r="16" fill="url(#orangeEmblem)" stroke="#ffffff" strokeWidth="2.5" />
+          {/* 内側のメカニカルコア紋章 */}
+          <circle cx="188" cy="142" r="10" fill="#c2410c" stroke="#fdba74" strokeWidth="1.5" />
+          <circle cx="188" cy="142" r="5" fill="#facc15" />
+          {/* マーク表面のガラス光沢ハイライト */}
+          <ellipse cx="184" cy="136" rx="5" ry="2.5" fill="#ffffff" opacity="0.8" />
+        </g>
+
+        {/* 第1節（頭部）：巨大メタルいもむしの頭 */}
+        <ellipse cx="248" cy="145" rx="42" ry="44" fill="url(#metalChrome)" stroke="#1e293b" strokeWidth="3.5" />
+        {/* ヘルメット風トッププレート */}
+        <path d="M220 115 Q255 102 282 125" stroke="#ffffff" strokeWidth="3" fill="none" opacity="0.8" />
+
+        {/* 触角（アンテナ：メカニカルセンサー） */}
+        {/* 左触角 */}
+        <path d="M235 106 Q230 70 215 50" stroke="#475569" strokeWidth="4" fill="none" strokeLinecap="round" />
+        <circle cx="215" cy="50" r="7" fill="url(#orangeEmblem)" stroke="#ffffff" strokeWidth="1.5" />
+        {/* 右触角 */}
+        <path d="M260 108 Q275 72 290 52" stroke="#475569" strokeWidth="4" fill="none" strokeLinecap="round" />
+        <circle cx="290" cy="52" r="7" fill="url(#orangeEmblem)" stroke="#ffffff" strokeWidth="1.5" />
+
+        {/* メタルバイザー＆目（サイバーで知的な強い瞳） */}
+        <ellipse cx="258" cy="138" rx="14" ry="12" fill="#09090b" stroke="#38bdf8" strokeWidth="2.5" />
+        {/* 青く光るツインセンサー眼球 */}
+        <ellipse cx="258" cy="138" rx="10" ry="8" fill="#0284c7" />
+        <circle cx="256" cy="136" r="4" fill="#38bdf8" />
+        <circle cx="259" cy="134" r="1.5" fill="#ffffff" />
+
+        {/* 右側の小カメラアイ */}
+        <circle cx="278" cy="146" r="5" fill="#09090b" stroke="#38bdf8" strokeWidth="1.5" />
+        <circle cx="278" cy="146" r="3" fill="#38bdf8" />
+
+        {/* ロボットいもむしの口元・大あご（チタン製メカニカルマンディブル） */}
+        <path d="M272 165 Q290 175 278 185" fill="#334155" stroke="#0f172a" strokeWidth="2.5" />
+        <path d="M255 174 Q270 185 260 192" fill="#334155" stroke="#0f172a" strokeWidth="2.5" />
+        {/* クールな口元スリット */}
+        <line x1="262" y1="168" x2="274" y2="172" stroke="#f97316" strokeWidth="2" />
+
+        {/* --- 5. メタルのキラリとした反射光（星型ハイライト） --- */}
+        <g fill="#ffffff" opacity="0.85">
+          {/* 頭部の輝き */}
+          <polygon points="275,108 277,114 283,116 277,118 275,124 273,118 267,116 273,114" />
+          {/* 背中の輝き */}
+          <polygon points="140,115 141,120 146,121 141,122 140,127 139,122 134,121 139,120" />
+        </g>
+      </svg>
+    );
+  }
+
   // デフォルトフォールバック
   return (
     <svg {...svgBaseProps}>
