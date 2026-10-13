@@ -159,3 +159,72 @@ img, svg {
 .safe-bottom {
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
+
+/* タイトル画面用 ふわふわ浮遊アニメーション */
+@keyframes title-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes title-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.7)) drop-shadow(0 6px 12px rgba(0, 0, 0, 0.8));
+  }
+  50% {
+    filter: drop-shadow(0 0 32px rgba(250, 204, 21, 0.95)) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.9));
+  }
+}
+
+.anim-title-float {
+  animation: title-float 3.4s ease-in-out infinite;
+}
+
+.anim-title-glow {
+  animation: title-glow 3.4s ease-in-out infinite;
+}
+
+/* ぼうけんスタート！ 画面遷移アニメーション（1秒黒フェード & 0.5秒テキストフェードイン） */
+@keyframes start-fade-to-black {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes start-text-fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes start-fade-to-battle {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.anim-start-fade-black {
+  animation: start-fade-to-black 1s ease-in-out forwards;
+}
+
+.anim-start-text-in {
+  animation: start-text-fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.anim-start-fade-battle {
+  animation: start-fade-to-battle 0.5s ease-in-out forwards;
+}

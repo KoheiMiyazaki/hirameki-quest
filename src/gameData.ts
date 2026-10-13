@@ -128,9 +128,9 @@ export const GAME_CONFIG: GameConfig = {
   calculateEnemyHp: (stage: number) => {
     return 3 + Math.floor((stage - 1) / 5);
   },
-  // ステージ1で攻撃力:1、ステージ毎に+0.5（小数点以下切り捨て）
+  // 5ステージごとに攻撃力+1加算（HP増加ペース「5ステージごとに+1」と同期）
   calculateEnemyAttack: (stage: number) => {
-    return Math.floor(1 + (stage - 1) * 0.5);
+    return 1 + Math.floor((stage - 1) / 5);
   },
   playerInitialHp: 5,
   playerBaseAttack: 1,
@@ -487,27 +487,27 @@ export const WEAPON_LIST: WeaponItem[] = [
   {
     id: 'wooden_sword',
     name: '木のけん',
-    attackBonus: 3,
+    attackBonus: 1,
     iconType: 'wooden_sword',
-    price: 50,
+    price: 100,
     imagePath: null,
     isLocked: false,
   },
   {
     id: 'iron_sword',
-    name: '鉄のつるぎ',
-    attackBonus: 5,
+    name: '鉄のけん',
+    attackBonus: 3,
     iconType: 'iron_sword',
-    price: 120,
+    price: 500,
     imagePath: null,
     isLocked: false,
   },
   {
     id: 'diamond_sword',
     name: 'ダイヤのけん',
-    attackBonus: 10,
+    attackBonus: 5,
     iconType: 'diamond_sword',
-    price: 300,
+    price: 1000,
     imagePath: null,
     isLocked: false,
   },
@@ -526,28 +526,28 @@ export const ARMOR_LIST: ArmorItem[] = [
   },
   {
     id: 'leather_armor',
-    name: '皮のふく',
-    defenseBonus: 2,
+    name: '革のふく',
+    defenseBonus: 1,
     iconType: 'leather_armor',
-    price: 40,
+    price: 100,
     imagePath: null,
     isLocked: false,
   },
   {
     id: 'iron_armor',
     name: '鉄のよろい',
-    defenseBonus: 4,
+    defenseBonus: 3,
     iconType: 'iron_armor',
-    price: 100,
+    price: 500,
     imagePath: null,
     isLocked: false,
   },
   {
     id: 'diamond_armor',
-    name: 'ダイヤのぼうぐ',
-    defenseBonus: 8,
+    name: 'ダイヤのよろい',
+    defenseBonus: 5,
     iconType: 'diamond_armor',
-    price: 250,
+    price: 1000,
     imagePath: null,
     isLocked: false,
   },
@@ -970,4 +970,63 @@ export function generateStageMathQuestion(stage: number): QuizQuestion {
     explanation,
   };
 }
+
+/**
+ * ==========================================================================
+ * 🏆 スコアランキング機能（Top 5リーダーボード & ランクイン日 yyyy年mm月dd日表示）
+ * ==========================================================================
+ */
+export interface ScoreRankingEntry {
+  id: string;
+  score: number;
+  stage: number;
+  dateStr: string; // 「yyyy年mm月dd日」形式（ゼロ埋め）
+  timestamp: number;
+}
+
+/**
+ * ランクイン日を「yyyy年mm月dd日」形式にフォーマット（ゼロ埋め対応）
+ * 例: "2026年10月13日", "2026年04月05日"
+ */
+export function formatRankingDate(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}年${m}月${d}日`;
+}
+
+/**
+ * 既存のストレージデータや日付文字列を「yyyy年mm月dd日」形式に正規化（ゼロ埋め）
+ */
+export function normalizeRankingDate(entry: { dateStr?: string; timestamp?: number }): string {
+  if (entry.timestamp && (!entry.dateStr || !entry.dateStr.includes('年'))) {
+    return formatRankingDate(new Date(entry.timestamp));
+  }
+  if (entry.dateStr) {
+    if (/^\d{4}年\d{2}月\d{2}日$/.test(entry.dateStr)) {
+      return entry.dateStr;
+    }
+    const match = entry.dateStr.match(/^(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日$/);
+    if (match) {
+      const y = match[1] || String(new Date().getFullYear());
+      const m = match[2].padStart(2, '0');
+      const d = match[3].padStart(2, '0');
+      return `${y}年${m}月${d}日`;
+    }
+  }
+  return formatRankingDate(new Date());
+}
+
+/**
+ * 初回表示時のデフォルトスコアランキング（Top 5枠）
+ * ※「yyyy年mm月dd日」形式でゼロ埋め済み
+ */
+export const DEFAULT_SCORE_RANKINGS: ScoreRankingEntry[] = [
+  { id: 'rank-def-1', score: 1000, stage: 5, dateStr: '2026年10月10日', timestamp: 1728518400000 },
+  { id: 'rank-def-2', score: 600, stage: 3, dateStr: '2026年10月11日', timestamp: 1728604800000 },
+  { id: 'rank-def-3', score: 400, stage: 2, dateStr: '2026年10月12日', timestamp: 1728691200000 },
+  { id: 'rank-def-4', score: 200, stage: 1, dateStr: '2026年10月12日', timestamp: 1728691200000 },
+  { id: 'rank-def-5', score: 100, stage: 1, dateStr: '2026年10月13日', timestamp: 1728777600000 },
+];
+
 
